@@ -885,9 +885,9 @@ class _ProfilePageState extends State<ProfilePage> {
             onTap: () {
               showAboutDialog(
                 context: context,
-                applicationName: 'Transport Hub',
+                applicationName: 'PSV Finder',
                 applicationVersion: '1.0.0',
-                applicationLegalese: '© 2024 Transport Hub. All rights reserved.',
+                applicationLegalese: '© 2025 PSV Finder. All rights reserved.',
               );
             },
           ),
