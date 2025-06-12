@@ -3,16 +3,16 @@ import 'user_app/pages/welcome_page.dart';
 import 'user_app/utils/constants.dart';
 
 void main() {
-  runApp(const TransportHubApp());
+  runApp(const SaccoApp());
 }
 
-class TransportHubApp extends StatelessWidget {
-  const TransportHubApp({super.key});
+class SaccoApp extends StatelessWidget {
+  const SaccoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Transport Hub',
+      title: 'PSV Finder',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.lightGrey,

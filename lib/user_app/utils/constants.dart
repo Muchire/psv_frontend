@@ -5,6 +5,9 @@ class AppColors {
   static const Color tan = Color(0xFFD0B49F);
   static const Color brown = Color(0xFFA47551);
   static const Color carafe = Color(0xFF523A28);
+  static const Color blue = Color(0xFF2196F3);
+  static const Color green = Color(0xFF4CAF50);
+  static const Color orange =Color(0xFFFF9800);
   
   // Additional colors for better UI
   static const Color white = Color(0xFFFFFFFF);
