@@ -3,7 +3,7 @@ import '/services/api_service.dart';
 import '../utils/constants.dart';
 import 'welcome_page.dart';
 import 'sacco_admin_request_page.dart';
-import 'sacco_admin_dashboard.dart'; // You'll need to create this
+import 'sacco_admin_dashboard.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -30,10 +30,12 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isLoading = true);
     try {
       final profile = await ApiService.getUserProfile();
+      print('Profile loaded: $profile'); // Debug print
       setState(() {
         _userProfile = profile;
       });
     } catch (e) {
+      print('Error loading profile: $e'); // Debug print
       _showErrorSnackBar('Failed to load profile: $e');
     } finally {
       setState(() => _isLoading = false);
@@ -58,12 +60,22 @@ class _ProfilePageState extends State<ProfilePage> {
     setState(() => _isSwitchingMode = true);
     try {
       final response = await ApiService.switchUserMode(mode);
+      print('Switch mode response: $response'); // Debug print
+      
       _showSuccessSnackBar(response['message'] ?? 'Switched to $mode mode successfully!');
+
+      // Update the local profile with the new role information
+      if (_userProfile != null && response['user'] != null) {
+        setState(() {
+          _userProfile!['current_role'] = response['user']['current_role'];
+          // You might also want to update other role-related fields if they're returned
+        });
+      }
 
       // Handle navigation based on the role
       switch (mode) {
         case 'vehicle_owner':
-          _showInfoSnackBar('Vehicle owner dashboard coming soon!');
+          _showSuccessSnackBar('Vehicle owner dashboard coming soon!');
           break;
         case 'sacco_admin':
           // Navigate to sacco admin dashboard
@@ -77,23 +89,17 @@ class _ProfilePageState extends State<ProfilePage> {
           break;
       }
 
-      // Refresh the profile to show updated role
-      await _loadUserProfile();
+      // Only refresh the profile after a delay to ensure backend is updated
+      // Or better yet, don't refresh at all since we're updating locally
+      // await Future.delayed(Duration(milliseconds: 500));
+      // await _loadUserProfile();
       
     } catch (e) {
+      print('Switch mode error: $e'); // Debug print
       _showErrorSnackBar('Failed to switch mode: $e');
     } finally {
       setState(() => _isSwitchingMode = false);
     }
-  }
-
-  void _showInfoSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.brown,
-      ),
-    );
   }
 
   Future<void> _updateProfile() async {
@@ -279,6 +285,30 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // Helper method to get available roles based on user permissions
+// Helper method to get available roles based on user permissions
+  List<String> _getAvailableRoles() {
+    if (_userProfile == null) return [];
+    
+    List<String> availableRoles = [];
+    
+    // Everyone can be a passenger (this should always be true)
+    if (_userProfile!['is_passenger'] == true) {
+      availableRoles.add('passenger');
+    }
+    
+    // Check if user can be vehicle owner
+    if (_userProfile!['is_vehicle_owner'] == true) {
+      availableRoles.add('vehicle_owner');
+    }
+    
+    // Check if user can be sacco admin
+    if (_userProfile!['is_sacco_admin'] == true) {
+      availableRoles.add('sacco_admin');
+    }
+    return availableRoles;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -454,10 +484,10 @@ class _ProfilePageState extends State<ProfilePage> {
     }
 
     final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
-    final availableRoles = _userProfile?['available_roles'] as List<dynamic>? ?? [];
-    final allUserRoles = <String>{currentRole, ...availableRoles.map((r) => r.toString())};
-    final canRequestAdmin = !allUserRoles.contains('sacco_admin');
-    final canSwitchRoles = availableRoles.isNotEmpty;
+    final availableRoles = _getAvailableRoles();
+    final otherAvailableRoles = availableRoles.where((role) => role != currentRole).toList();
+    final canRequestAdmin = !(_userProfile!['is_sacco_admin'] == true);
+    final canSwitchRoles = otherAvailableRoles.isNotEmpty;
 
     return Container(
       margin: const EdgeInsets.all(16.0),
@@ -475,14 +505,19 @@ class _ProfilePageState extends State<ProfilePage> {
                     const SizedBox(height: 16),
                     Text('Change your role to access different features', style: AppTextStyles.body2),
                     const SizedBox(height: 16),
+                    Text('Current: ${_getRoleDisplayName(currentRole)}', 
+                         style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
                     Wrap(
                       spacing: 8.0,
                       children: [
+                        // Show current role as active
                         _buildModeChip(currentRole, _getRoleDisplayName(currentRole), _getRoleIcon(currentRole), isActive: true),
-                        ...availableRoles.map((role) => _buildModeChip(
-                          role.toString(),
-                          _getRoleDisplayName(role.toString()),
-                          _getRoleIcon(role.toString()),
+                        // Show other available roles
+                        ...otherAvailableRoles.map((role) => _buildModeChip(
+                          role,
+                          _getRoleDisplayName(role),
+                          _getRoleIcon(role),
                           isActive: false,
                         )),
                       ],
@@ -530,7 +565,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
             ),
-          ] else if (allUserRoles.contains('sacco_admin')) ...[
+          ] else ...[
             // Show this if user already has admin role
             Card(
               child: Padding(
@@ -542,24 +577,50 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text('You are a Sacco Admin!', style: AppTextStyles.heading3),
                     Text('You have administrative privileges', style: AppTextStyles.body2),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          _switchUserMode('sacco_admin');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brown,
-                          foregroundColor: AppColors.white,
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
+                    if (currentRole != 'sacco_admin') ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSwitchingMode ? null : () {
+                            _switchUserMode('sacco_admin');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brown,
+                            foregroundColor: AppColors.white,
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
                           ),
+                          icon: _isSwitchingMode 
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.dashboard),
+                          label: Text(_isSwitchingMode ? 'Switching...' : 'Switch to Admin Mode'),
                         ),
-                        icon: const Icon(Icons.dashboard),
-                        label: const Text('Go to Admin Dashboard'),
                       ),
-                    ),
+                    ] else ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const SaccoAdminDashboard()),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.brown,
+                            foregroundColor: AppColors.white,
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                          ),
+                          icon: const Icon(Icons.dashboard),
+                          label: const Text('Go to Admin Dashboard'),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -588,6 +649,7 @@ class _ProfilePageState extends State<ProfilePage> {
       selected: isActive,
       onSelected: _isSwitchingMode ? null : (selected) {
         if (!isActive) {
+          print('Switching to mode: $mode'); // Debug print
           _switchUserMode(mode);
         }
       },
