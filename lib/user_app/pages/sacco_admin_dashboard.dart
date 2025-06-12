@@ -1,5 +1,12 @@
+// lib/user_app/pages/sacco_admin_dashboard.dart
 import 'package:flutter/material.dart';
-import "../utils/constants.dart";
+import '../../services/sacco_admin_service.dart';
+import '../utils/constants.dart';
+import '../widgets/loading_widget.dart';
+import '../widgets/error_widget.dart';
+import 'sacco_routes_page.dart';
+import 'sacco_reviews_page.dart';
+import 'sacco_edit_page.dart';
 
 class SaccoAdminDashboard extends StatefulWidget {
   const SaccoAdminDashboard({super.key});
@@ -10,51 +17,99 @@ class SaccoAdminDashboard extends StatefulWidget {
 
 class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
   int _selectedIndex = 0;
+  Map<String, dynamic>? _dashboardData;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboardData();
+  }
+
+  Future<void> _loadDashboardData() async {
+    try {
+      setState(() {
+        _isLoading = true;
+        _error = null;
+      });
+
+      final data = await SaccoAdminService.getDashboardData();
+      setState(() {
+        _dashboardData = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sacco Admin Dashboard'),
+        title: Text(_dashboardData?['sacco_info']?['name'] ?? 'Sacco Admin Dashboard'),
         backgroundColor: AppColors.brown,
         foregroundColor: AppColors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.notifications),
-            onPressed: () {
-              _showComingSoon('Notifications');
-            },
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadDashboardData,
           ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
-              _showComingSoon('Settings');
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SaccoEditPage(),
+                ),
+              ).then((_) => _loadDashboardData());
             },
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWelcomeCard(),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            _buildQuickStatsSection(),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            _buildQuickActionsSection(),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            _buildManagementSection(),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            _buildReportsSection(),
-          ],
-        ),
-      ),
+      body: _isLoading
+          ? const Center(child: LoadingWidget())
+          : _error != null
+              ? Center(
+                  child: ErrorDisplayWidget(
+                    error: _error!,
+                    onRetry: _loadDashboardData,
+                  ),
+                )
+              : _buildDashboardContent(),
       bottomNavigationBar: _buildBottomNavigation(),
     );
   }
 
+  Widget _buildDashboardContent() {
+    if (_dashboardData == null) return const Center(child: Text('No data available'));
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildWelcomeCard(),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          _buildQuickStatsSection(),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          _buildQuickActionsSection(),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          _buildRecentReviewsSection(),
+        ],
+      ),
+    );
+  }
+
   Widget _buildWelcomeCard() {
+    final saccoInfo = _dashboardData!['sacco_info'];
+    final stats = _dashboardData!['statistics'];
+
     return Card(
       elevation: 4,
       child: Container(
@@ -84,15 +139,15 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Welcome, Admin!',
+                        'Welcome, ${saccoInfo['name']} Admin!',
                         style: AppTextStyles.heading2.copyWith(
                           color: AppColors.white,
                         ),
                       ),
                       Text(
-                        'Manage your Sacco operations from here',
+                        saccoInfo['location'],
                         style: AppTextStyles.body1.copyWith(
-                          color: AppColors.white.withAlpha(25),
+                          color: AppColors.lightGrey,
                         ),
                       ),
                     ],
@@ -102,7 +157,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
             ),
             const SizedBox(height: AppDimensions.paddingMedium),
             Text(
-              'Quick Overview',
+              'Overall Rating: ${stats['overall_avg_rating']}/5.0',
               style: AppTextStyles.heading3.copyWith(
                 color: AppColors.white,
               ),
@@ -111,9 +166,9 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _buildQuickStat('Active Members', '245'),
-                _buildQuickStat('Total Loans', '150'),
-                _buildQuickStat('Deposits Today', 'KSh 45,000'),
+                _buildQuickStat('Routes', '${stats['total_routes']}'),
+                _buildQuickStat('Passenger Reviews', '${stats['total_passenger_reviews']}'),
+                _buildQuickStat('Owner Reviews', '${stats['total_owner_reviews']}'),
               ],
             ),
           ],
@@ -135,7 +190,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
         Text(
           label,
           style: AppTextStyles.caption.copyWith(
-            color: AppColors.white.withAlpha(25),
+            color: AppColors.white.withOpacity(0.8),
           ),
           textAlign: TextAlign.center,
         ),
@@ -144,11 +199,13 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
   }
 
   Widget _buildQuickStatsSection() {
+    final stats = _dashboardData!['statistics'];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Quick Stats',
+          'Performance Statistics',
           style: AppTextStyles.heading2.copyWith(
             color: AppColors.brown,
           ),
@@ -158,18 +215,18 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
           children: [
             Expanded(
               child: _buildStatCard(
-                'Total Members',
-                '1,245',
-                Icons.people,
+                'Total Routes',
+                '${stats['total_routes']}',
+                Icons.route,
                 AppColors.green,
               ),
             ),
             const SizedBox(width: AppDimensions.paddingSmall),
             Expanded(
               child: _buildStatCard(
-                'Active Loans',
-                '324',
-                Icons.account_balance_wallet,
+                'Passenger Rating',
+                '${stats['passenger_avg_rating']}/5',
+                Icons.star,
                 AppColors.orange,
               ),
             ),
@@ -180,19 +237,19 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
           children: [
             Expanded(
               child: _buildStatCard(
-                'Total Deposits',
-                'KSh 2.5M',
-                Icons.savings,
+                'Owner Rating',
+                '${stats['owner_avg_rating']}/5',
+                Icons.business,
                 AppColors.blue,
               ),
             ),
             const SizedBox(width: AppDimensions.paddingSmall),
             Expanded(
               child: _buildStatCard(
-                'Pending Applications',
-                '12',
-                Icons.pending_actions,
-                Colors.red,
+                'Overall Rating',
+                '${stats['overall_avg_rating']}/5',
+                Icons.trending_up,
+                AppColors.green,
               ),
             ),
           ],
@@ -255,28 +312,43 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
           mainAxisSpacing: AppDimensions.paddingSmall,
           children: [
             _buildActionCard(
-              'Add Member',
-              Icons.person_add,
+              'Manage Routes',
+              Icons.route,
               AppColors.green,
-              () => _showComingSoon('Add Member'),
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SaccoRoutesPage(),
+                ),
+              ),
             ),
             _buildActionCard(
-              'Process Loan',
-              Icons.monetization_on,
+              'View Reviews',
+              Icons.star,
               AppColors.orange,
-              () => _showComingSoon('Process Loan'),
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SaccoReviewsPage(),
+                ),
+              ),
             ),
             _buildActionCard(
-              'Record Deposit',
-              Icons.account_balance,
+              'Edit Sacco Info',
+              Icons.edit,
               AppColors.blue,
-              () => _showComingSoon('Record Deposit'),
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SaccoEditPage(),
+                ),
+              ).then((_) => _loadDashboardData()),
             ),
             _buildActionCard(
-              'Send Notice',
-              Icons.notifications_active,
+              'Analytics',
+              Icons.analytics,
               Colors.purple,
-              () => _showComingSoon('Send Notice'),
+              () => _showComingSoon('Analytics'),
             ),
           ],
         ),
@@ -311,142 +383,98 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
     );
   }
 
-  Widget _buildManagementSection() {
+  Widget _buildRecentReviewsSection() {
+    final recentReviews = _dashboardData!['recent_reviews'];
+    final passengerReviews = recentReviews['passenger_reviews'] as List;
+    final ownerReviews = recentReviews['owner_reviews'] as List;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Management',
+          'Recent Reviews',
           style: AppTextStyles.heading2.copyWith(
             color: AppColors.brown,
           ),
         ),
         const SizedBox(height: AppDimensions.paddingSmall),
-        _buildManagementItem(
-          'Member Management',
-          'View, add, edit, and manage member information',
-          Icons.people_outline,
-          () => _showComingSoon('Member Management'),
-        ),
-        _buildManagementItem(
-          'Loan Management',
-          'Process loan applications and track repayments',
-          Icons.account_balance_wallet_outlined,
-          () => _showComingSoon('Loan Management'),
-        ),
-        _buildManagementItem(
-          'Financial Records',
-          'Track deposits, withdrawals, and account balances',
-          Icons.receipt_long,
-          () => _showComingSoon('Financial Records'),
-        ),
-        _buildManagementItem(
-          'System Settings',
-          'Configure system parameters and user permissions',
-          Icons.settings_outlined,
-          () => _showComingSoon('System Settings'),
-        ),
+        if (passengerReviews.isNotEmpty) ...[
+          Text(
+            'Passenger Reviews',
+            style: AppTextStyles.heading3.copyWith(
+              color: AppColors.brown,
+            ),
+          ),
+          const SizedBox(height: AppDimensions.paddingSmall),
+          ...passengerReviews.take(3).map((review) => _buildReviewCard(
+                review['user_name'] ?? 'Anonymous',
+                review['average']?.toDouble() ?? 0.0,
+                review['comment'] ?? 'No comment',
+                'passenger',
+              )),
+        ],
+        if (ownerReviews.isNotEmpty) ...[
+          const SizedBox(height: AppDimensions.paddingMedium),
+          Text(
+            'Owner Reviews',
+            style: AppTextStyles.heading3.copyWith(
+              color: AppColors.brown,
+            ),
+          ),
+          const SizedBox(height: AppDimensions.paddingSmall),
+          ...ownerReviews.take(3).map((review) => _buildReviewCard(
+                review['user_name'] ?? 'Anonymous',
+                review['average']?.toDouble() ?? 0.0,
+                review['comment'] ?? 'No comment',
+                'owner',
+              )),
+        ],
       ],
     );
   }
 
-  Widget _buildManagementItem(String title, String subtitle, IconData icon, VoidCallback onTap) {
+  Widget _buildReviewCard(String userName, double rating, String comment, String type) {
     return Card(
       elevation: 1,
       margin: const EdgeInsets.only(bottom: AppDimensions.paddingSmall),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: AppColors.brown.withAlpha(25),
-          child: Icon(icon, color: AppColors.brown),
+          backgroundColor: type == 'passenger' ? AppColors.blue : AppColors.green,
+          child: Icon(
+            type == 'passenger' ? Icons.person : Icons.business,
+            color: AppColors.white,
+          ),
         ),
         title: Text(
-          title,
+          userName,
           style: AppTextStyles.body1.copyWith(
             fontWeight: FontWeight.w600,
           ),
         ),
-        subtitle: Text(
-          subtitle,
-          style: AppTextStyles.body2.copyWith(
-            color: AppColors.grey,
-          ),
-        ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: AppColors.grey,
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  Widget _buildReportsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Reports & Analytics',
-          style: AppTextStyles.heading2.copyWith(
-            color: AppColors.brown,
-          ),
-        ),
-        const SizedBox(height: AppDimensions.paddingSmall),
-        Row(
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: _buildReportCard(
-                'Monthly Report',
-                'Generate comprehensive monthly reports',
-                Icons.bar_chart,
-                () => _showComingSoon('Monthly Report'),
-              ),
+            Row(
+              children: [
+                ...List.generate(5, (index) => Icon(
+                  index < rating ? Icons.star : Icons.star_border,
+                  color: AppColors.orange,
+                  size: 16,
+                )),
+                const SizedBox(width: 8),
+                Text('${rating.toStringAsFixed(1)}/5'),
+              ],
             ),
-            const SizedBox(width: AppDimensions.paddingSmall),
-            Expanded(
-              child: _buildReportCard(
-                'Member Analytics',
-                'View member activity and statistics',
-                Icons.analytics,
-                () => _showComingSoon('Member Analytics'),
+            const SizedBox(height: 4),
+            Text(
+              comment,
+              style: AppTextStyles.body2.copyWith(
+                color: AppColors.grey,
               ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildReportCard(String title, String subtitle, IconData icon, VoidCallback onTap) {
-    return Card(
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        child: Container(
-          padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-          height: 120,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(icon, color: AppColors.brown, size: 32),
-              const SizedBox(height: AppDimensions.paddingSmall),
-              Text(
-                title,
-                style: AppTextStyles.body1.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Text(
-                  subtitle,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.grey,
-                  ),
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -459,8 +487,37 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
         setState(() {
           _selectedIndex = index;
         });
-        if (index != 0) {
-          _showComingSoon('Navigation Item ${index + 1}');
+        switch (index) {
+          case 0:
+            // Dashboard - already here
+            break;
+          case 1:
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SaccoRoutesPage(),
+              ),
+            );
+            break;
+          case 2:
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SaccoReviewsPage(),
+              ),
+            );
+            break;
+          case 3:
+            _showComingSoon('Reports');
+            break;
+          case 4:
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SaccoEditPage(),
+              ),
+            ).then((_) => _loadDashboardData());
+            break;
         }
       },
       type: BottomNavigationBarType.fixed,
@@ -472,20 +529,20 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
           label: 'Dashboard',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.people),
-          label: 'Members',
+          icon: Icon(Icons.route),
+          label: 'Routes',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.account_balance_wallet),
-          label: 'Loans',
+          icon: Icon(Icons.star),
+          label: 'Reviews',
         ),
         BottomNavigationBarItem(
           icon: Icon(Icons.assessment),
           label: 'Reports',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.more_horiz),
-          label: 'More',
+          icon: Icon(Icons.settings),
+          label: 'Settings',
         ),
       ],
     );

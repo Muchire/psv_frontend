@@ -134,7 +134,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Transport Hub'),
+        title: const Text('PSV Finder'),
         actions: [
           IconButton(
             icon: const Icon(Icons.person),
@@ -483,12 +483,21 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      itemCount: routes.length,
-      itemBuilder: (context, index) {
-        final route = routes[index];
-        return Card(
+  return ListView.builder(
+    padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+    itemCount: routes.length,
+    itemBuilder: (context, index) {
+      final route = routes[index];
+      return GestureDetector(  // Wrap Card with GestureDetector for onTap functionality
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SaccoDetailPage(saccoId: route['sacco_id']),  // Corrected sacco reference
+            ),
+          );
+        },
+        child: Card(
           margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
           child: Padding(
             padding: const EdgeInsets.all(AppDimensions.paddingMedium),
@@ -535,12 +544,14 @@ class _HomePageState extends State<HomePage> {
                     style: AppTextStyles.caption,
                   ),
                 ],
+                const Icon(Icons.arrow_forward_ios, color: AppColors.brown),
               ],
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   @override
