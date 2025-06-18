@@ -116,21 +116,41 @@ class SaccoAdminService {
     }
   }
 
-  // Create route
   static Future<Map<String, dynamic>> createRoute(
     Map<String, dynamic> routeData,
   ) async {
     try {
+      if (routeData.containsKey('stops_data')) {
+        routeData['stops'] = routeData.remove('stops_data');;
+      }
+      
+      final headers = await _getHeaders();
+      
       final response = await http.post(
         Uri.parse('$baseUrl$adminPath/routes-with-stops/'),
-        headers: await _getHeaders(),
+        headers: headers,
         body: json.encode(routeData),
       );
 
+
       if (response.statusCode == 201) {
-        return json.decode(response.body);
+        final responseData = json.decode(response.body);
+        return responseData;
       } else {
         final errorBody = response.body;
+        
+        // Try to parse error details
+        try {
+          final errorData = json.decode(errorBody);
+          if (errorData is Map && errorData.containsKey('errors')) {
+            throw Exception('Validation errors: ${errorData['errors']}');
+          } else if (errorData is Map) {
+            throw Exception('Server error: ${errorData.toString()}');
+          }
+        } catch (e) {
+          // If can't parse as JSON, use raw response
+        }
+        
         throw Exception('Failed to create route: ${response.statusCode} - $errorBody');
       }
     } catch (e) {
@@ -138,29 +158,53 @@ class SaccoAdminService {
     }
   }
 
-  // Update route - now accepts dynamic ID and converts it
   static Future<Map<String, dynamic>> updateRoute(
     dynamic routeId,
     Map<String, dynamic> routeData,
   ) async {
     try {
+      
+      // Fix the field name - backend expects 'stops', not 'stops_data'
+      if (routeData.containsKey('stops_data')) {
+        routeData['stops'] = routeData.remove('stops_data');
+      }
+      
+      
       final id = _parseId(routeId);
+      
+      final headers = await _getHeaders();
+      
       final response = await http.patch(
         Uri.parse('$baseUrl$adminPath/routes-with-stops/$id/'),
-        headers: await _getHeaders(),
+        headers: headers,
         body: json.encode(routeData),
       );
 
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final responseData = json.decode(response.body);
+        return responseData;
       } else {
         final errorBody = response.body;
+        
+        // Try to parse error details
+        try {
+          final errorData = json.decode(errorBody);
+          if (errorData is Map && errorData.containsKey('errors')) {
+            throw Exception('Validation errors: ${errorData['errors']}');
+          } else if (errorData is Map) {
+            throw Exception('Server error: ${errorData.toString()}');
+          }
+        } catch (e) {
+          // If can't parse as JSON, use raw response
+        }
+        
         throw Exception('Failed to update route: ${response.statusCode} - $errorBody');
       }
-    } catch (e) {
+    } catch (e) {;
       throw Exception('Error updating route: $e');
     }
   }
+
 
   // Delete route - now accepts dynamic ID and converts it
   static Future<void> deleteRoute(dynamic routeId) async {

@@ -124,6 +124,20 @@ class ApiService {
     }
   }
   
+  // ADD THIS MISSING METHOD - Route Detail API
+  static Future<Map<String, dynamic>> getRouteDetail(int routeId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/routes/$routeId/'),
+      headers: await getHeaders(),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load route details');
+    }
+  }
+  
   static Future<List<dynamic>> searchRoutes({
     required String from,
     required String to,
@@ -154,6 +168,47 @@ class ApiService {
     }
   }
   
+  
+// ADD THESE METHODS TO YOUR ApiService CLASS
+
+  // Get reviews for a specific sacco
+  static Future<List<dynamic>> getSaccoReviews(int saccoId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/reviews/passenger-reviews/sacco/$saccoId/'),
+        headers: await getHeaders(),
+      );
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load sacco reviews: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load sacco reviews: $e');
+    }
+  }
+
+  // Get routes for a specific sacco
+  static Future<List<dynamic>> getRoutesBySacco(int saccoId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/routes/sacco/$saccoId/'),
+        headers: await getHeaders(),
+      );
+      
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        throw Exception('Failed to load routes for sacco: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to load routes for sacco: $e');
+    }
+  }
+
+  // Create passenger review
+ // Updated createPassengerReview method with better error handling
   static Future<Map<String, dynamic>> createPassengerReview({
     required int saccoId,
     required int cleanliness,
@@ -162,26 +217,57 @@ class ApiService {
     required int overall,
     String? comment,
   }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/reviews/passenger-reviews/'),
-      headers: await getHeaders(),
-      body: jsonEncode({
-        'sacco': saccoId,
+    try {
+      final headers = await getHeaders();
+      final double average = (cleanliness + punctuality + comfort + overall) / 4.0;
+      final body = {
         'cleanliness': cleanliness,
         'punctuality': punctuality,
         'comfort': comfort,
         'overall': overall,
-        'comment': comment,
-      }),
-    );
-    
-    if (response.statusCode == 201) {
-      return jsonDecode(response.body);
-    } else {
-      throw Exception('Failed to create review');
+        'average': average.toStringAsFixed(2), // Calculate average rating
+        if (comment != null && comment.isNotEmpty) 'comment': comment,
+      };
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/reviews/passenger-reviews/sacco/$saccoId/'),
+        headers: headers,
+        body: jsonEncode(body),
+      );
+
+
+      if (response.statusCode == 201) {
+        return jsonDecode(response.body);
+      } else {
+        // Try to parse error response
+        Map<String, dynamic> errorData;
+        try {
+          errorData = jsonDecode(response.body);
+        } catch (e) {
+          errorData = {'error': response.body};
+        }
+        
+        // Create detailed error message
+        String errorMessage = 'Failed to create review (${response.statusCode})';
+        if (errorData.containsKey('error')) {
+          errorMessage += ': ${errorData['error']}';
+        } else if (errorData.containsKey('detail')) {
+          errorMessage += ': ${errorData['detail']}';
+        } else {
+          errorMessage += ': ${response.body}';
+        }
+        
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      print('DEBUG: Exception occurred: $e');
+      if (e is Exception) {
+        rethrow;
+      } else {
+        throw Exception('Network error: $e');
+      }
     }
   }
-  
   // User mode switching
   static Future<Map<String, dynamic>> switchUserMode(String mode) async {
     final response = await http.post(
@@ -198,6 +284,7 @@ class ApiService {
       throw Exception('Failed to switch user mode');
     }
   }
+  
   static Future<Map<String, dynamic>> getUserProfile() async {
     final response = await http.get(
       Uri.parse('$baseUrl/user/profile/'),
@@ -290,7 +377,8 @@ class ApiService {
       throw Exception('Failed to deactivate account');
     }
   }
-// Add this method to your ApiService class
+
+  // Add this method to your ApiService class
   static Future<Map<String, dynamic>> submitSaccoAdminRequest({
     int? saccoId, // null if creating a new sacco
     String? saccoName,
@@ -317,7 +405,6 @@ class ApiService {
       }
     };
 
-    print("Submitting admin request with body: $body"); // Debug print
 
     final response = await http.post(
       url,
@@ -325,12 +412,40 @@ class ApiService {
       body: jsonEncode(body),
     );
 
-    print("Admin request response: ${response.statusCode} - ${response.body}"); // Debug print
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body);
     } else {
       throw Exception('Failed to submit admin request: ${response.body}');
+    }
+  }
+
+  static Future<void> debugAuthStatus() async {
+    final token = await getToken();
+    print('DEBUG: Current token: ${token ?? 'NO TOKEN'}');
+    
+    if (token != null) {
+      try {
+        final response = await http.get(
+          Uri.parse('$baseUrl/user/profile/'),
+          headers: await getHeaders(),
+        );
+        print('DEBUG: Auth check status: ${response.statusCode}');
+        print('DEBUG: Auth check response: ${response.body}');
+      } catch (e) {
+        print('DEBUG: Auth check error: $e');
+      }
+    }
+  }
+
+  // Call this before submitting the review to ensure user is authenticated
+  static Future<bool> isUserAuthenticated() async {
+    try {
+      final response = await getUserProfile();
+      return true;
+    } catch (e) {
+      print('DEBUG: User not authenticated: $e');
+      return false;
     }
   }
 }
