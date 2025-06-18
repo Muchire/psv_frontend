@@ -28,33 +28,48 @@ class _AddReviewPageState extends State<AddReviewPage> {
     setState(() => _isSubmitting = true);
 
     try {
-      await ApiService.createPassengerReview(
+      // First, check if user is authenticated
+      await ApiService.debugAuthStatus(); // Debug helper
+      
+      final isAuthenticated = await ApiService.isUserAuthenticated();
+      if (!isAuthenticated) {
+        throw Exception('User not authenticated. Please log in again.');
+      }
+
+      final result = await ApiService.createPassengerReview(
         saccoId: widget.saccoId,
         cleanliness: _cleanlinessRating,
         punctuality: _punctualityRating,
         comfort: _comfortRating,
         overall: _overallRating,
-        comment:
-            _commentController.text.isEmpty ? null : _commentController.text,
+        comment: _commentController.text.isEmpty ? null : _commentController.text,
       );
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Review submitted successfully!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
 
-      Navigator.pop(context, true);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Review submitted successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to submit review: $e'),
-          backgroundColor: AppColors.error,
-        ),
-      );
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit review: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     } finally {
-      setState(() => _isSubmitting = false);
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
     }
   }
 

@@ -3,6 +3,7 @@ import '/services/api_service.dart';
 import '../utils/constants.dart';
 import 'sacco_detail_page.dart';
 import 'profile_page.dart';
+import 'route_detail_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -79,8 +80,6 @@ class _HomePageState extends State<HomePage> {
 
     setState(() => _isSaccoSearching = true);
     try {
-      // If your API service doesn't have a searchSaccos method, you can filter locally
-      // or add this method to your API service
       final results = await _searchSaccosLocal(_saccoSearchController.text);
       
       setState(() {
@@ -428,21 +427,16 @@ class _HomePageState extends State<HomePage> {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  sacco['description'] ?? 'No description available',
-                  style: AppTextStyles.body2,
-                ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Icon(Icons.phone, size: 16, color: AppColors.grey),
+                    const Icon(Icons.location_city, size: 16, color: AppColors.grey),
                     const SizedBox(width: 4),
-                    Text(sacco['contact_phone'] ?? 'No phone', style: AppTextStyles.caption),
+                    Text(sacco['location'] ?? 'Location', style: AppTextStyles.caption),
                   ],
                 ),
               ],
             ),
-            trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.brown),
             onTap: () {
               Navigator.push(
                 context,
@@ -493,7 +487,10 @@ class _HomePageState extends State<HomePage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SaccoDetailPage(saccoId: route['sacco_id']),  // Corrected sacco reference
+              builder: (context) => RouteDetailPage(
+                routeId: route['id'], // Pass the route ID
+                routeName: '${route['start_location']} → ${route['end_location']}', // Optional route name
+              ),
             ),
           );
         },
@@ -544,7 +541,7 @@ class _HomePageState extends State<HomePage> {
                     style: AppTextStyles.caption,
                   ),
                 ],
-                const Icon(Icons.arrow_forward_ios, color: AppColors.brown),
+                const Icon(Icons.route, color: AppColors.brown),
               ],
             ),
           ),

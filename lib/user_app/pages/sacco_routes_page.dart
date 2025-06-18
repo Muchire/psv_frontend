@@ -956,6 +956,7 @@ class _RouteFormDialogState extends State<_RouteFormDialog> {
   }
 
   // In _RouteFormDialogState._saveRoute() method
+ // Updated _saveRoute method in _RouteFormDialogState
   Future<void> _saveRoute() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -963,46 +964,80 @@ class _RouteFormDialogState extends State<_RouteFormDialog> {
       _isLoading = true;
     });
 
-    // Prepare stops data with proper order
-    final stops =
-        _stopControllers
-            .where((controller) => controller.text.trim().isNotEmpty)
-            .map(
-              (controller) => {
-                'stage_name': controller.text.trim(),
-                'order':
-                    _stopControllers.indexOf(controller) + 1, // Add order field
-              },
-            )
-            .toList();
-
-    // Prepare route data
-    final routeData = {
-      'start_location': _startLocationController.text.trim(),
-      'end_location': _endLocationController.text.trim(),
-      'stops_data': stops, // ← Changed from 'stops' to 'stops_data'
-    };
-
-    // Add optional fields if they have values
-    if (_distanceController.text.trim().isNotEmpty) {
-      routeData['distance'] = double.parse(_distanceController.text.trim());
-    }
-
-    if (_durationController.text.trim().isNotEmpty) {
-      routeData['duration'] = int.parse(_durationController.text.trim());
-    }
-
-    if (_fareController.text.trim().isNotEmpty) {
-      routeData['fare'] = double.parse(_fareController.text.trim());
-    }
-
     try {
+      // Prepare stops data with proper order
+      final stops = _stopControllers
+          .where((controller) => controller.text.trim().isNotEmpty)
+          .map((controller) {
+            final index = _stopControllers.indexOf(controller);
+            return <String, dynamic>{
+              'stage_name': controller.text.trim(),
+              'order': index + 1, // Add order field starting from 1
+            };
+          })
+          .toList();
+
+      // Prepare route data with explicit typing
+      final routeData = <String, dynamic>{
+        'start_location': _startLocationController.text.trim(),
+        'end_location': _endLocationController.text.trim(),
+      };
+
+      // Add stops if any exist (backend expects 'stops', not 'stops_data')
+      if (stops.isNotEmpty) {
+        routeData['stops'] = stops;
+      }
+
+      // Add optional fields if they have values
+      if (_distanceController.text.trim().isNotEmpty) {
+        final distance = double.tryParse(_distanceController.text.trim());
+        if (distance != null && distance > 0) {
+          routeData['distance'] = distance;
+        }
+      }
+
+      if (_durationController.text.trim().isNotEmpty) {
+        final duration = int.tryParse(_durationController.text.trim());
+        if (duration != null && duration > 0) {
+          routeData['duration'] = duration;
+        }
+      }
+
+      if (_fareController.text.trim().isNotEmpty) {
+        final fare = double.tryParse(_fareController.text.trim());
+        if (fare != null && fare > 0) {
+          routeData['fare'] = fare;
+        }
+      }
+
+      // Debug: Print the data being sent
+      print('=== Form Data ===');
+      print('Route Data: $routeData');
+      print('Stops Count: ${stops.length}');
+      for (int i = 0; i < stops.length; i++) {
+        print('Stop ${i + 1}: ${stops[i]}');
+      }
+
+      // Call the service method
       await widget.onSave(routeData);
     } catch (e) {
+      print('Error in _saveRoute: $e');
       setState(() {
         _isLoading = false;
       });
-      // Error handling is done in the parent widget's onSave callback
+
+      // Show error to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      // Re-throw so parent can handle it too
+      rethrow;
     }
   }
 }

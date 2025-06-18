@@ -15,8 +15,10 @@ class SaccoDetailPage extends StatefulWidget {
 class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _saccoData;
   List<dynamic> _reviews = [];
+  List<dynamic> _routes = [];
   bool _isLoading = true;
   bool _isLoadingReviews = false;
+  bool _isLoadingRoutes = false;
   late TabController _tabController;
 
   @override
@@ -25,6 +27,7 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
     _tabController = TabController(length: 3, vsync: this);
     _loadSaccoDetails();
     _loadReviews();
+    _loadRoutes();
   }
 
   Future<void> _loadSaccoDetails() async {
@@ -43,11 +46,9 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
   Future<void> _loadReviews() async {
     setState(() => _isLoadingReviews = true);
     try {
-      final reviews = await ApiService.getPassengerReviews();
-      // Filter reviews for this sacco
-      final saccoReviews = reviews.where((review) => review['sacco'] == widget.saccoId).toList();
+      final reviews = await ApiService.getSaccoReviews(widget.saccoId);
       setState(() {
-        _reviews = saccoReviews;
+        _reviews = reviews;
         _isLoadingReviews = false;
       });
     } catch (e) {
@@ -56,23 +57,44 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
     }
   }
 
+  Future<void> _loadRoutes() async {
+    setState(() => _isLoadingRoutes = true);
+    try {
+      final routes = await ApiService.getRoutesBySacco(widget.saccoId);
+      setState(() {
+        _routes = routes;
+        _isLoadingRoutes = false;
+      });
+    } catch (e) {
+      setState(() => _isLoadingRoutes = false);
+      _showErrorSnackBar('Failed to load routes: $e');
+    }
+  }
+
   void _showErrorSnackBar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   double _calculateAverageRating(String type) {
     if (_reviews.isEmpty) return 0.0;
     
     double sum = 0;
+    int count = 0;
     for (var review in _reviews) {
-      sum += (review[type] ?? 0).toDouble();
+      final rating = review[type];
+      if (rating != null) {
+        sum += rating.toString().isEmpty ? 0 : double.tryParse(rating.toString()) ?? 0;
+        count++;
+      }
     }
-    return sum / _reviews.length;
+    return count > 0 ? sum / count : 0.0;
   }
 
   @override
@@ -103,7 +125,9 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AddReviewPage(saccoId: widget.saccoId),
+                  builder: (context) => AddReviewPage(
+                    saccoId: _saccoData!['id'],
+                  ),
                 ),
               );
               if (result == true) {
@@ -236,6 +260,8 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const SizedBox(height: AppDimensions.paddingMedium),
+          
           Card(
             child: Padding(
               padding: const EdgeInsets.all(AppDimensions.paddingMedium),
@@ -244,31 +270,43 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                 children: [
                   Text('Contact Information', style: AppTextStyles.heading3),
                   const SizedBox(height: AppDimensions.paddingMedium),
-                  _buildInfoRow(Icons.phone, 'Phone', _saccoData!['contact_phone'] ?? 'Not available'),
-                  _buildInfoRow(Icons.email, 'Email', _saccoData!['contact_email'] ?? 'Not available'),
-                  _buildInfoRow(Icons.location_on, 'Address', _saccoData!['address'] ?? 'Not available'),
+                  // Try multiple possible field names
+                  _buildInfoRow(Icons.phone, 'Phone', 
+                    _saccoData!['contact_number'] ?? 
+                    'Not available'),
+                  _buildInfoRow(Icons.email, 'Email', 
+                    _saccoData!['email'] ?? 
+                    'Not available'),
+                  _buildInfoRow(Icons.location_on, "Location", 
+                    _saccoData!['location'] ?? 
+                    'Not available'),
                 ],
               ),
             ),
           ),
           
-          if (_saccoData!['established_date'] != null) ...[
-            const SizedBox(height: AppDimensions.paddingMedium),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Company Details', style: AppTextStyles.heading3),
-                    const SizedBox(height: AppDimensions.paddingMedium),
-                    _buildInfoRow(Icons.calendar_today, 'Established', _saccoData!['established_date']),
-                    _buildInfoRow(Icons.info, 'Status', _saccoData!['is_active'] == true ? 'Active' : 'Inactive'),
-                  ],
-                ),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Company Details', style: AppTextStyles.heading3),
+                  const SizedBox(height: AppDimensions.paddingMedium),
+                  _buildInfoRow(Icons.calendar_today, 'Established', 
+                    _saccoData!['date_established'] ?? 
+                    'Not available'),
+                  _buildInfoRow(Icons.person, 'Manager',
+                    _saccoData!['sacco_admin'] ?? 
+                    'Not available'),
+                  if (_saccoData!['description'] != null)
+                    _buildInfoRow(Icons.description, 'Description', 
+                      _saccoData!['description']),
+                ],
               ),
             ),
-          ],
+          ),
         ],
       ),
     );
@@ -297,9 +335,11 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
   }
 
   Widget _buildRoutesTab() {
-    final routes = _saccoData!['routes'] as List<dynamic>? ?? [];
+    if (_isLoadingRoutes) {
+      return const Center(child: CircularProgressIndicator());
+    }
     
-    if (routes.isEmpty) {
+    if (_routes.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -314,9 +354,9 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      itemCount: routes.length,
+      itemCount: _routes.length,
       itemBuilder: (context, index) {
-        final route = routes[index];
+        final route = _routes[index];
         return Card(
           margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
           child: Padding(
@@ -328,25 +368,28 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                   children: [
                     Expanded(
                       child: Text(
-                        '${route['start_location']} → ${route['end_location']}',
+                        '${route['start_location'] ?? 'Unknown'} → ${route['end_location'] ?? 'Unknown'}',
                         style: AppTextStyles.heading3,
                       ),
                     ),
-                    Text(
-                      'KES ${route['fare']}',
-                      style: AppTextStyles.heading3.copyWith(color: AppColors.success),
-                    ),
+                    if (route['fare'] != null)
+                      Text(
+                        'KES ${route['fare']}',
+                        style: AppTextStyles.heading3.copyWith(color: AppColors.success),
+                      ),
                   ],
                 ),
-                const SizedBox(height: AppDimensions.paddingSmall),
-                Row(
-                  children: [
-                    Icon(Icons.access_time, size: 16, color: AppColors.grey),
-                    const SizedBox(width: 4),
-                    Text('${route['duration']} minutes', style: AppTextStyles.caption),
-                  ],
-                ),
-                if (route['description'] != null && route['description'].isNotEmpty) ...[
+                if (route['duration'] != null) ...[
+                  const SizedBox(height: AppDimensions.paddingSmall),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 16, color: AppColors.grey),
+                      const SizedBox(width: 4),
+                      Text('${route['duration']} minutes', style: AppTextStyles.caption),
+                    ],
+                  ),
+                ],
+                if (route['description'] != null && route['description'].toString().isNotEmpty) ...[
                   const SizedBox(height: AppDimensions.paddingSmall),
                   Text(route['description'], style: AppTextStyles.body2),
                 ],
@@ -409,7 +452,7 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                       radius: 20,
                       backgroundColor: AppColors.tan,
                       child: Text(
-                        review['user_name']?.substring(0, 1).toUpperCase() ?? 'U',
+                        (review['user_name'] ?? review['user'] ?? 'U').toString().substring(0, 1).toUpperCase(),
                         style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
                       ),
                     ),
@@ -419,17 +462,17 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            review['user_name'] ?? 'Anonymous',
+                            review['user_name'] ?? review['user'] ?? 'Anonymous',
                             style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            review['created_at'] ?? '',
+                            review['created_at'] ?? review['date_created'] ?? '',
                             style: AppTextStyles.caption,
                           ),
                         ],
                       ),
                     ),
-                    _buildStarRating(review['overall']?.toDouble() ?? 0),
+                    _buildStarRating(double.tryParse(review['overall']?.toString() ?? '0') ?? 0),
                   ],
                 ),
                 const SizedBox(height: AppDimensions.paddingMedium),
@@ -438,13 +481,13 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    _buildSmallRating('Cleanliness', review['cleanliness']?.toDouble() ?? 0),
-                    _buildSmallRating('Punctuality', review['punctuality']?.toDouble() ?? 0),
-                    _buildSmallRating('Comfort', review['comfort']?.toDouble() ?? 0),
+                    _buildSmallRating('Cleanliness', double.tryParse(review['cleanliness']?.toString() ?? '0') ?? 0),
+                    _buildSmallRating('Punctuality', double.tryParse(review['punctuality']?.toString() ?? '0') ?? 0),
+                    _buildSmallRating('Comfort', double.tryParse(review['comfort']?.toString() ?? '0') ?? 0),
                   ],
                 ),
                 
-                if (review['comment'] != null && review['comment'].isNotEmpty) ...[
+                if (review['comment'] != null && review['comment'].toString().isNotEmpty) ...[
                   const SizedBox(height: AppDimensions.paddingMedium),
                   Text(review['comment'], style: AppTextStyles.body2),
                 ],
