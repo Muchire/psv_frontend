@@ -227,7 +227,7 @@ class _SaccoReviewsPageState extends State<SaccoReviewsPage>
             ),
             const SizedBox(height: AppDimensions.paddingSmall),
             Text(
-              '${summary['overall_avg_rating']}/5.0',
+              '${summary['overall_avg_rating']}/10.0',
               style: AppTextStyles.heading1.copyWith(
                 color: AppColors.white,
                 fontWeight: FontWeight.bold,
@@ -334,7 +334,7 @@ class _SaccoReviewsPageState extends State<SaccoReviewsPage>
             ),
             const SizedBox(height: AppDimensions.paddingSmall),
             Text(
-              '${rating.toStringAsFixed(1)}/5.0',
+              '${rating.toStringAsFixed(1)}/10.0',
               style: AppTextStyles.heading3.copyWith(
                 color: color,
                 fontWeight: FontWeight.bold,
@@ -456,11 +456,50 @@ class _SaccoReviewsPageState extends State<SaccoReviewsPage>
     );
   }
 
+  // FIXED: Better handling of user data with proper type checking
   Widget _buildReviewCard(Map<String, dynamic> review, String type) {
-    final userName = review['user_name'] ?? review['user']?['username'] ?? 'Anonymous';
-    final rating = review['average']?.toDouble() ?? 0.0;
-    final comment = review['comment'] ?? 'No comment provided';
-    final createdAt = review['created_at'] ?? '';
+    // Safe extraction of user name with proper type checking
+    String userName = 'Anonymous';
+    
+    try {
+      // Try different possible field names and structures
+      if (review['user_name'] != null) {
+        userName = review['user_name'].toString();
+      } else if (review['username'] != null) {
+        userName = review['username'].toString();
+      } else if (review['user'] != null) {
+        final user = review['user'];
+        if (user is Map<String, dynamic>) {
+          // User is an object with username field
+          userName = user['username']?.toString() ?? user['name']?.toString() ?? 'Anonymous';
+        } else if (user is String) {
+          // User is already a string (username)
+          userName = user;
+        } else {
+          // User is likely an ID (int), keep as Anonymous
+          userName = 'User #${user.toString()}';
+        }
+      }
+    } catch (e) {
+      print('Error extracting username: $e');
+      userName = 'Anonymous';
+    }
+
+    // Safe extraction of rating with proper type checking
+    double rating = 0.0;
+    try {
+      if (review['average'] != null) {
+        rating = double.tryParse(review['average'].toString()) ?? 0.0;
+      } else if (review['rating'] != null) {
+        rating = double.tryParse(review['rating'].toString()) ?? 0.0;
+      }
+    } catch (e) {
+      print('Error extracting rating: $e');
+      rating = 0.0;
+    }
+
+    final comment = review['comment']?.toString() ?? 'No comment provided';
+    final createdAt = review['created_at']?.toString() ?? '';
 
     return Card(
       elevation: 2,
@@ -535,11 +574,22 @@ class _SaccoReviewsPageState extends State<SaccoReviewsPage>
     );
   }
 
+  // FIXED: Better handling of review details with proper type checking
   Widget _buildPassengerReviewDetails(Map<String, dynamic> review) {
-    final cleanliness = review['cleanliness']?.toInt() ?? 0;
-    final punctuality = review['punctuality']?.toInt() ?? 0;
-    final comfort = review['comfort']?.toInt() ?? 0;
-    final overall = review['overall']?.toInt() ?? 0;
+    // Safe extraction of detailed ratings with proper type checking
+    int cleanliness = 0;
+    int punctuality = 0;
+    int comfort = 0;
+    int overall = 0;
+
+    try {
+      cleanliness = int.tryParse(review['cleanliness']?.toString() ?? '0') ?? 0;
+      punctuality = int.tryParse(review['punctuality']?.toString() ?? '0') ?? 0;
+      comfort = int.tryParse(review['comfort']?.toString() ?? '0') ?? 0;
+      overall = int.tryParse(review['overall']?.toString() ?? '0') ?? 0;
+    } catch (e) {
+      print('Error extracting detailed ratings: $e');
+    }
 
     return Column(
       children: [

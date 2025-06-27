@@ -75,8 +75,9 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Login'),
+        title: const Text('Log In'),
         backgroundColor: AppColors.carafe,
+        centerTitle: true,
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -90,15 +91,13 @@ class _LoginPageState extends State<LoginPage> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingLarge),
-            child: Form(
-              key: _formKey,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(AppDimensions.paddingLarge),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const SizedBox(height: AppDimensions.paddingLarge * 2),
-                  
                   // Welcome back text
                   Text(
                     'Welcome Back!',
@@ -118,86 +117,108 @@ class _LoginPageState extends State<LoginPage> {
                   
                   const SizedBox(height: AppDimensions.paddingLarge * 2),
                   
-                  // Username field
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: Icon(Icons.person, color: AppColors.brown),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your username';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: AppDimensions.paddingMedium),
-                  
-                  // Password field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                          color: AppColors.brown,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      return null;
-                    },
-                  ),
-                  
-                  const SizedBox(height: AppDimensions.paddingLarge),
-                  
-                  // Login button
-                  ElevatedButton(
-                    onPressed: _isLoading ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.carafe,
-                      minimumSize: const Size(double.infinity, 56),
-                    ),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              color: AppColors.white,
-                              strokeWidth: 2,
+                  // Form Container - Constrained width
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          // Username field
+                          TextFormField(
+                            controller: _usernameController,
+                            decoration: const InputDecoration(
+                              labelText: 'Username',
+                              prefixIcon: Icon(Icons.person, color: AppColors.brown),
+                              border: OutlineInputBorder(),
                             ),
-                          )
-                        : const Text('Login', style: AppTextStyles.button),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter your username';
+                              }
+                              return null;
+                            },
+                          ),
+                          
+                          const SizedBox(height: AppDimensions.paddingMedium),
+                          
+                          // Password field
+                          TextFormField(
+                            controller: _passwordController,
+                            obscureText: _obscurePassword,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
+                              suffixIcon: IconButton(
+                                icon: Icon(
+                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                  color: AppColors.brown,
+                                ),
+                                onPressed: () {
+                                  setState(() {
+                                    _obscurePassword = !_obscurePassword;
+                                  });
+                                },
+                              ),
+                              border: const OutlineInputBorder(),
+                            ),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Please enter your password';
+                              }
+                              return null;
+                            },
+                          ),
+                          
+                          const SizedBox(height: AppDimensions.paddingLarge),
+                          
+                          // Login button - Constrained width
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _isLoading ? null : _login,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.carafe,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: _isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        color: AppColors.white,
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Log In', style: AppTextStyles.button),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                   
                   const SizedBox(height: AppDimensions.paddingLarge),
                   
-                  // Divider
-                  Row(
-                    children: [
-                      const Expanded(child: Divider(color: AppColors.tan)),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: AppDimensions.paddingMedium),
-                        child: Text(
-                          'OR',
-                          style: AppTextStyles.body2.copyWith(color: AppColors.grey),
+                  // Divider - Constrained width
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: Row(
+                      children: [
+                        const Expanded(child: Divider(color: AppColors.tan)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.paddingMedium),
+                          child: Text(
+                            'OR',
+                            style: AppTextStyles.body2.copyWith(color: AppColors.grey),
+                          ),
                         ),
-                      ),
-                      const Expanded(child: Divider(color: AppColors.tan)),
-                    ],
+                        const Expanded(child: Divider(color: AppColors.tan)),
+                      ],
+                    ),
                   ),
                   
                   const SizedBox(height: AppDimensions.paddingLarge),
@@ -230,7 +251,7 @@ class _LoginPageState extends State<LoginPage> {
                     ],
                   ),
                   
-                  const Spacer(),
+                  const SizedBox(height: AppDimensions.paddingLarge),
                   
                   // Guest mode
                   TextButton(
@@ -246,6 +267,7 @@ class _LoginPageState extends State<LoginPage> {
                       'Continue as Guest',
                       style: AppTextStyles.body2.copyWith(
                         decoration: TextDecoration.underline,
+                        color: AppColors.brown,
                       ),
                     ),
                   ),

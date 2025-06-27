@@ -21,123 +21,149 @@ class WelcomePage extends StatelessWidget {
           ),
         ),
         child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingLarge),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Spacer(),
-                
-                // Logo/Icon
-                Container(
-                  height: 120,
-                  width: 120,
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.carafe.withAlpha(76),
-                        blurRadius: 10,
-                        offset: const Offset(0, 5),
-                      ),
-                    ],
-                  ),
-                  child: const Icon(
-                    Icons.directions_bus,
-                    size: 60,
-                    color: AppColors.brown,
-                  ),
-                ),
-                
-                const SizedBox(height: AppDimensions.paddingLarge * 2),
-                
-                // App Title
-                Text(
-                  'PSV Finder',
-                  style: AppTextStyles.heading1.copyWith(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                
-                const SizedBox(height: AppDimensions.paddingMedium),
-                
-                // Subtitle
-                Text(
-                  'Find the best SACCO services\nfor your journey',
-                  style: AppTextStyles.body1.copyWith(
-                    color: AppColors.brown,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                
-                const Spacer(),
-                
-                // Login Button
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const LoginPage(),
-                      ),
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.carafe,
-                    minimumSize: const Size(double.infinity, 56),
-                  ),
-                  child: const Text(
-                    'Login',
-                    style: AppTextStyles.button,
-                  ),
-                ),
-                
-                const SizedBox(height: AppDimensions.paddingMedium),
-                
-                // Register Button
-                OutlinedButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RegisterPage(),
-                      ),
-                    );
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.carafe, width: 2),
-                    minimumSize: const Size(double.infinity, 56),
-                  ),
-                  child: Text(
-                    'Create Account',
-                    style: AppTextStyles.button.copyWith(
-                      color: AppColors.carafe,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.paddingLarge,
+                vertical: AppDimensions.paddingMedium,
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  const Spacer(flex: 2),
+                  
+                  // Logo/Icon
+                  Container(
+                    height: 100,
+                    width: 100,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.carafe.withAlpha(76),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.directions_bus,
+                      size: 50,
+                      color: AppColors.brown,
                     ),
                   ),
-                ),
-                
-                const SizedBox(height: AppDimensions.paddingLarge),
-                
-                // Guest Mode
-                TextButton(
-                  onPressed: () {
-                    // Navigate to home as guest
-                    Navigator.pushReplacementNamed(context, '/home');
-                  },
-                  child: Text(
-                    'Continue as Guest',
-                    style: AppTextStyles.body2.copyWith(
-                      decoration: TextDecoration.underline,
+                  
+                  const SizedBox(height: AppDimensions.paddingLarge * 1.5),
+                  
+                  // App Title
+                  Text(
+                    'PSV Finder',
+                    style: AppTextStyles.heading1.copyWith(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const SizedBox(height: AppDimensions.paddingMedium),
+                  
+                  // Subtitle
+                  Text(
+                    'Find the best SACCO services\nfor your journey',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.brown,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  
+                  const Spacer(flex: 3),
+                  
+                  // Buttons Container - Constrained width
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: Column(
+                      children: [
+                        // Login Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginPage(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.carafe,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: const Text(
+                              'Log In',
+                              style: AppTextStyles.button,
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: AppDimensions.paddingMedium),
+                        
+                        // Register Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => const RegisterPage(),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.carafe, width: 2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              'Create Account',
+                              style: AppTextStyles.button.copyWith(
+                                color: AppColors.carafe,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                
-                const SizedBox(height: AppDimensions.paddingLarge),
-              ],
+                  
+                  const SizedBox(height: AppDimensions.paddingLarge),
+                  
+                  // Guest Mode
+                  TextButton(
+                    onPressed: () {
+                      // Navigate to home as guest
+                      Navigator.pushReplacementNamed(context, '/home');
+                    },
+                    child: Text(
+                      'Continue as Guest',
+                      style: AppTextStyles.body2.copyWith(
+                        decoration: TextDecoration.underline,
+                        color: AppColors.brown,
+                      ),
+                    ),
+                  ),
+                  
+                  const Spacer(flex: 1),
+                ],
+              ),
             ),
           ),
         ),

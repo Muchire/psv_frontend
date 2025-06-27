@@ -4,6 +4,7 @@ import '../utils/constants.dart';
 import 'welcome_page.dart';
 import 'sacco_admin_request_page.dart';
 import 'sacco_admin_dashboard.dart';
+import 'vehicle_owner_dashboard.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -61,39 +62,39 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final response = await ApiService.switchUserMode(mode);
       print('Switch mode response: $response'); // Debug print
-      
-      _showSuccessSnackBar(response['message'] ?? 'Switched to $mode mode successfully!');
+
+      _showSuccessSnackBar(
+        response['message'] ?? 'Switched to $mode mode successfully!',
+      );
 
       // Update the local profile with the new role information
       if (_userProfile != null && response['user'] != null) {
         setState(() {
           _userProfile!['current_role'] = response['user']['current_role'];
-          // You might also want to update other role-related fields if they're returned
         });
       }
 
       // Handle navigation based on the role
       switch (mode) {
         case 'vehicle_owner':
-          _showSuccessSnackBar('Vehicle owner dashboard coming soon!');
-          break;
-        case 'sacco_admin':
-          // Navigate to sacco admin dashboard
           Navigator.push(
             context,
-            MaterialPageRoute(builder: (context) => const SaccoAdminDashboard()),
+            MaterialPageRoute(
+              builder: (context) => VehicleOwnerDashboard(),
+            ),
+          );
+          break;
+        case 'sacco_admin':
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SaccoAdminDashboard(),
+            ),
           );
           break;
         case 'passenger':
-          // Stay on current page for passenger mode
           break;
       }
-
-      // Only refresh the profile after a delay to ensure backend is updated
-      // Or better yet, don't refresh at all since we're updating locally
-      // await Future.delayed(Duration(milliseconds: 500));
-      // await _loadUserProfile();
-      
     } catch (e) {
       print('Switch mode error: $e'); // Debug print
       _showErrorSnackBar('Failed to switch mode: $e');
@@ -269,44 +270,59 @@ class _ProfilePageState extends State<ProfilePage> {
 
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.error,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.error),
     );
   }
 
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: AppColors.success,
-      ),
+      SnackBar(content: Text(message), backgroundColor: AppColors.success),
     );
   }
 
-  // Helper method to get available roles based on user permissions
-// Helper method to get available roles based on user permissions
-  List<String> _getAvailableRoles() {
+  // Helper method to get available roles for dropdown
+  List<String> _getAvailableRolesForDropdown() {
     if (_userProfile == null) return [];
-    
+
+    final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
     List<String> availableRoles = [];
-    
-    // Everyone can be a passenger (this should always be true)
-    if (_userProfile!['is_passenger'] == true) {
+
+    // Add current role first
+    availableRoles.add(currentRole);
+
+    // Add other available roles
+    if (_userProfile!['is_passenger'] == true && currentRole != 'passenger') {
       availableRoles.add('passenger');
     }
-    
-    // Check if user can be vehicle owner
-    if (_userProfile!['is_vehicle_owner'] == true) {
+
+    if (_userProfile!['is_vehicle_owner'] == true &&
+        currentRole != 'vehicle_owner') {
       availableRoles.add('vehicle_owner');
     }
-    
-    // Check if user can be sacco admin
-    if (_userProfile!['is_sacco_admin'] == true) {
+
+    if (_userProfile!['is_sacco_admin'] == true &&
+        currentRole != 'sacco_admin') {
       availableRoles.add('sacco_admin');
     }
+
     return availableRoles;
+  }
+
+  // Check if user should see vehicle owner request option
+  bool _shouldShowVehicleOwnerRequest() {
+    if (_userProfile == null) return false;
+
+    final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
+    final isVehicleOwner = _userProfile!['is_vehicle_owner'] == true;
+
+    // Show request only if user is passenger and not already a vehicle owner
+    return currentRole == 'passenger' && !isVehicleOwner;
+  }
+
+  // Check if user should see sacco admin request option
+  bool _shouldShowSaccoAdminRequest() {
+    if (_userProfile == null) return false;
+    return !(_userProfile!['is_sacco_admin'] == true);
   }
 
   @override
@@ -329,54 +345,56 @@ class _ProfilePageState extends State<ProfilePage> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit, color: AppColors.brown),
-                    SizedBox(width: 8),
-                    Text('Edit Profile'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'password',
-                child: Row(
-                  children: [
-                    Icon(Icons.lock, color: AppColors.brown),
-                    SizedBox(width: 8),
-                    Text('Change Password'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Edit Profile'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'password',
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Change Password'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: AppColors.error),
+                        SizedBox(width: 8),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildProfileHeader(),
-                  _buildUserModeSection(),
-                  _buildStatsSection(),
-                  _buildRecentReviewsSection(),
-                  _buildSettingsSection(),
-                ],
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildProfileHeader(),
+                    _buildUserModeSection(),
+                    _buildStatsSection(),
+                    _buildRecentReviewsSection(),
+                    _buildSettingsSection(),
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -384,7 +402,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final firstName = _userProfile?['first_name'] ?? '';
     final lastName = _userProfile?['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final displayName = fullName.isNotEmpty ? fullName : _userProfile?['username'] ?? 'Unknown User';
+    final displayName =
+        fullName.isNotEmpty
+            ? fullName
+            : _userProfile?['username'] ?? 'Unknown User';
 
     return Container(
       width: double.infinity,
@@ -392,11 +413,7 @@ class _ProfilePageState extends State<ProfilePage> {
       decoration: const BoxDecoration(
         color: AppColors.white,
         boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -413,37 +430,100 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: AppDimensions.paddingMedium),
-          Text(
-            displayName,
-            style: AppTextStyles.heading1,
-          ),
+          Text(displayName, style: AppTextStyles.heading1),
           Text(
             _userProfile?['email'] ?? 'No email',
             style: AppTextStyles.body2,
           ),
-          if (_userProfile?['phone_number'] != null && _userProfile!['phone_number'].isNotEmpty) ...[
-            Text(
-              _userProfile!['phone_number'],
-              style: AppTextStyles.body2,
-            ),
+          if (_userProfile?['phone_number'] != null &&
+              _userProfile!['phone_number'].isNotEmpty) ...[
+            Text(_userProfile!['phone_number'], style: AppTextStyles.body2),
           ],
           const SizedBox(height: AppDimensions.paddingSmall),
-          Container(
-            padding: const EdgeInsets.symmetric(
-              horizontal: AppDimensions.paddingMedium,
-              vertical: AppDimensions.paddingSmall,
-            ),
-            decoration: BoxDecoration(
-              color: AppColors.tan,
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLarge),
-            ),
-            child: Text(
-              _getRoleDisplayName(_userProfile?['current_role'] ?? 'passenger'),
-              style: AppTextStyles.caption.copyWith(
-                fontWeight: FontWeight.bold,
-                color: AppColors.carafe,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.paddingMedium,
+                  vertical: AppDimensions.paddingSmall,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.tan,
+                  borderRadius: BorderRadius.circular(
+                    AppDimensions.radiusLarge,
+                  ),
+                ),
+                child: Text(
+                  _getRoleDisplayName(
+                    _userProfile?['current_role'] ?? 'passenger',
+                  ),
+                  style: AppTextStyles.caption.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.carafe,
+                  ),
+                ),
               ),
-            ),
+              // Role switcher dropdown
+              if (_getAvailableRolesForDropdown().length > 1) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.brown,
+                    borderRadius: BorderRadius.circular(
+                      AppDimensions.radiusLarge,
+                    ),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _userProfile?['current_role'] ?? 'passenger',
+                      icon: const Icon(
+                        Icons.swap_horiz,
+                        color: AppColors.white,
+                        size: 16,
+                      ),
+                      dropdownColor: AppColors.white,
+                      onChanged:
+                          _isSwitchingMode
+                              ? null
+                              : (String? newRole) {
+                                if (newRole != null &&
+                                    newRole != _userProfile?['current_role']) {
+                                  _switchUserMode(newRole);
+                                }
+                              },
+                      items:
+                          _getAvailableRolesForDropdown()
+                              .map<DropdownMenuItem<String>>((String role) {
+                                return DropdownMenuItem<String>(
+                                  value: role,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        _getRoleIcon(role),
+                                        size: 16,
+                                        color: AppColors.brown,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        _getRoleDisplayName(role),
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.brown,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              })
+                              .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: AppDimensions.paddingSmall),
           Text(
@@ -483,44 +563,57 @@ class _ProfilePageState extends State<ProfilePage> {
       return const SizedBox.shrink();
     }
 
+    final shouldShowVehicleOwnerRequest = _shouldShowVehicleOwnerRequest();
+    final shouldShowSaccoAdminRequest = _shouldShowSaccoAdminRequest();
     final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
-    final availableRoles = _getAvailableRoles();
-    final otherAvailableRoles = availableRoles.where((role) => role != currentRole).toList();
-    final canRequestAdmin = !(_userProfile!['is_sacco_admin'] == true);
-    final canSwitchRoles = otherAvailableRoles.isNotEmpty;
+
+    // If no requests are needed, don't show this section
+    if (!shouldShowVehicleOwnerRequest && !shouldShowSaccoAdminRequest) {
+      return const SizedBox.shrink();
+    }
 
     return Container(
       margin: const EdgeInsets.all(16.0),
       child: Column(
         children: [
-          // Role switching section
-          if (canSwitchRoles) ...[
+          // Vehicle Owner Request
+          if (shouldShowVehicleOwnerRequest) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Switch User Mode', style: AppTextStyles.heading3),
+                    Text(
+                      'Become a Vehicle Owner',
+                      style: AppTextStyles.heading3,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Register your vehicle and start earning by providing transport services',
+                      style: AppTextStyles.body2,
+                    ),
                     const SizedBox(height: 16),
-                    Text('Change your role to access different features', style: AppTextStyles.body2),
-                    const SizedBox(height: 16),
-                    Text('Current: ${_getRoleDisplayName(currentRole)}', 
-                         style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8.0,
-                      children: [
-                        // Show current role as active
-                        _buildModeChip(currentRole, _getRoleDisplayName(currentRole), _getRoleIcon(currentRole), isActive: true),
-                        // Show other available roles
-                        ...otherAvailableRoles.map((role) => _buildModeChip(
-                          role,
-                          _getRoleDisplayName(role),
-                          _getRoleIcon(role),
-                          isActive: false,
-                        )),
-                      ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          // TODO: Navigate to vehicle owner registration page
+                          _showSuccessSnackBar(
+                            'Vehicle owner registration coming soon!',
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.brown,
+                          foregroundColor: AppColors.white,
+                          minimumSize: const Size(double.infinity, 48),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8.0),
+                          ),
+                        ),
+                        icon: const Icon(Icons.directions_car),
+                        label: const Text('Register as Vehicle Owner'),
+                      ),
                     ),
                   ],
                 ),
@@ -528,8 +621,8 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
 
-          // Request admin button
-          if (canRequestAdmin) ...[
+          // Sacco Admin Request
+          if (shouldShowSaccoAdminRequest) ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -538,7 +631,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Text('Become a Sacco Admin', style: AppTextStyles.heading3),
                     const SizedBox(height: 8),
-                    Text('Request to become a Sacco Admin to manage transport services', style: AppTextStyles.body2),
+                    Text(
+                      'Request to become a Sacco Admin to manage transport services',
+                      style: AppTextStyles.body2,
+                    ),
                     const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
@@ -546,7 +642,10 @@ class _ProfilePageState extends State<ProfilePage> {
                         onPressed: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const SaccoAdminRequestPage()),
+                            MaterialPageRoute(
+                              builder:
+                                  (context) => const SaccoAdminRequestPage(),
+                            ),
                           );
                         },
                         style: ElevatedButton.styleFrom(
@@ -565,62 +664,30 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
             ),
-          ] else ...[
-            // Show this if user already has admin role
+          ],
+
+          // Quick access to admin dashboard if user is already admin but in different mode
+          if (_userProfile!['is_sacco_admin'] == true &&
+              currentRole != 'sacco_admin') ...[
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
-                    Icon(Icons.admin_panel_settings, size: 48, color: AppColors.brown),
+                    Icon(
+                      Icons.admin_panel_settings,
+                      size: 48,
+                      color: AppColors.brown,
+                    ),
                     const SizedBox(height: 8),
-                    Text('You are a Sacco Admin!', style: AppTextStyles.heading3),
-                    Text('You have administrative privileges', style: AppTextStyles.body2),
-                    const SizedBox(height: 16),
-                    if (currentRole != 'sacco_admin') ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _isSwitchingMode ? null : () {
-                            _switchUserMode('sacco_admin');
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brown,
-                            foregroundColor: AppColors.white,
-                            minimumSize: const Size(double.infinity, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          icon: _isSwitchingMode 
-                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Icon(Icons.dashboard),
-                          label: Text(_isSwitchingMode ? 'Switching...' : 'Switch to Admin Mode'),
-                        ),
-                      ),
-                    ] else ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const SaccoAdminDashboard()),
-                            );
-                          },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.brown,
-                            foregroundColor: AppColors.white,
-                            minimumSize: const Size(double.infinity, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            ),
-                          ),
-                          icon: const Icon(Icons.dashboard),
-                          label: const Text('Go to Admin Dashboard'),
-                        ),
-                      ),
-                    ],
+                    Text(
+                      'You are a Sacco Admin!',
+                      style: AppTextStyles.heading3,
+                    ),
+                    Text(
+                      'Switch to admin mode using the dropdown above',
+                      style: AppTextStyles.body2,
+                    ),
                   ],
                 ),
               ),
@@ -644,34 +711,11 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Widget _buildModeChip(String mode, String label, IconData icon, {required bool isActive}) {
-    return FilterChip(
-      selected: isActive,
-      onSelected: _isSwitchingMode ? null : (selected) {
-        if (!isActive) {
-          print('Switching to mode: $mode'); // Debug print
-          _switchUserMode(mode);
-        }
-      },
-      avatar: Icon(
-        icon,
-        size: 16,
-        color: isActive ? AppColors.white : AppColors.brown,
-      ),
-      label: Text(label),
-      selectedColor: AppColors.brown,
-      backgroundColor: AppColors.lightGrey,
-      labelStyle: TextStyle(
-        color: isActive ? AppColors.white : AppColors.brown,
-        fontSize: 12,
-        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-      ),
-    );
-  }
-
   Widget _buildStatsSection() {
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: AppDimensions.paddingMedium),
+      margin: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.paddingMedium,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(AppDimensions.paddingMedium),
         child: Column(
@@ -684,13 +728,16 @@ class _ProfilePageState extends State<ProfilePage> {
               children: [
                 _buildStatItem(
                   'Reviews',
-                   '${_userProfile?['reviews_count'] ?? 0}',
-                   Icons.rate_review
+                  '${_userProfile?['reviews_count'] ?? 0}',
+                  Icons.rate_review,
                 ),
                 _buildStatItem('Trips', '0', Icons.directions_bus),
-                _buildStatItem('Account Status',
-                   _userProfile?['is_active'] == true ? 'Active' : 'Inactive',
-                   _userProfile?['is_active'] == true ? Icons.check_circle : Icons.cancel
+                _buildStatItem(
+                  'Account Status',
+                  _userProfile?['is_active'] == true ? 'Active' : 'Inactive',
+                  _userProfile?['is_active'] == true
+                      ? Icons.check_circle
+                      : Icons.cancel,
                 ),
               ],
             ),
@@ -713,7 +760,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           Text(
             label,
-             style: AppTextStyles.caption,
+            style: AppTextStyles.caption,
             textAlign: TextAlign.center,
           ),
         ],
@@ -745,32 +792,30 @@ class _ProfilePageState extends State<ProfilePage> {
             _isLoadingReviews
                 ? const Center(child: CircularProgressIndicator())
                 : _userReviews.isEmpty
-                    ? Center(
-                        child: Column(
-                          children: [
-                            Icon(
-                              Icons.rate_review_outlined,
-                              size: 48,
-                              color: AppColors.grey,
-                            ),
-                            const SizedBox(height: AppDimensions.paddingSmall),
-                            Text(
-                              'No reviews yet',
-                              style: AppTextStyles.body2,
-                            ),
-                            Text(
-                              'Start reviewing saccos to help other users',
-                              style: AppTextStyles.caption,
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
-                      )
-                    : Column(
-                        children: _userReviews.map((review) {
-                          return _buildReviewItem(review);
-                        }).toList(),
+                ? Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.rate_review_outlined,
+                        size: 48,
+                        color: AppColors.grey,
                       ),
+                      const SizedBox(height: AppDimensions.paddingSmall),
+                      Text('No reviews yet', style: AppTextStyles.body2),
+                      Text(
+                        'Start reviewing saccos to help other users',
+                        style: AppTextStyles.caption,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                )
+                : Column(
+                  children:
+                      _userReviews.map((review) {
+                        return _buildReviewItem(review);
+                      }).toList(),
+                ),
           ],
         ),
       ),
@@ -799,7 +844,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     Text(
                       review['sacco_name'] ?? 'Unknown Sacco',
-                      style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                      style: AppTextStyles.body1.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     Text(
                       'As ${_getRoleDisplayName(review['role'] ?? 'passenger')}',
@@ -827,7 +874,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ],
           ),
-          if (review['comment'] != null && review['comment'].toString().isNotEmpty) ...[
+          if (review['comment'] != null &&
+              review['comment'].toString().isNotEmpty) ...[
             const SizedBox(height: AppDimensions.paddingSmall),
             Text(
               review['comment'].toString(),
@@ -837,10 +885,7 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ],
           const SizedBox(height: AppDimensions.paddingSmall),
-          Text(
-            review['created_at'] ?? '',
-            style: AppTextStyles.caption,
-          ),
+          Text(review['created_at'] ?? '', style: AppTextStyles.caption),
         ],
       ),
     );
@@ -894,7 +939,10 @@ class _ProfilePageState extends State<ProfilePage> {
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
-            title: const Text('Logout', style: TextStyle(color: AppColors.error)),
+            title: const Text(
+              'Logout',
+              style: TextStyle(color: AppColors.error),
+            ),
             onTap: _logout,
           ),
         ],
