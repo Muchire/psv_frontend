@@ -32,6 +32,53 @@ class ApiService {
     };
   }
   
+  // // Google Auth - FIXED
+  // static Future<Map<String, dynamic>> googleAuth({
+  //     required String idToken,
+  //   }) async {
+  //     final response = await http.post(
+  //       Uri.parse('$baseUrl/user/google-auth/'),
+  //       headers: {'Content-Type': 'application/json'},
+  //       body: jsonEncode({'id_token': idToken}),
+  //     );
+      
+  //     if (response.statusCode == 200) {
+  //       final data = jsonDecode(response.body);
+  //       if (data['token'] != null) {
+  //         await storeToken(data['token']);
+  //       }
+  //       return data;
+  //     } else {
+  //       throw Exception('Google authentication failed: ${response.body}');
+  //     }
+  //   }
+  static Future<Map<String, dynamic>> googleAuthWithTokens({
+    required Map<String, String> tokens,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/user/google-auth/'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(tokens), // Send both id_token and access_token if available
+    );
+        
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      if (data['token'] != null) {
+        await storeToken(data['token']);
+      }
+      return data;
+    } else {
+      throw Exception('Google authentication failed: ${response.body}');
+    }
+  }
+
+  // Keep your existing method for backward compatibility
+  static Future<Map<String, dynamic>> googleAuth({
+    required String idToken,
+  }) async {
+    return googleAuthWithTokens(tokens: {'id_token': idToken});
+  }
+  
   // Auth APIs
   static Future<Map<String, dynamic>> register({
     required String username,
@@ -83,6 +130,72 @@ class ApiService {
     }
   }
   
+  // FIXED: Password Reset APIs with correct URLs
+  static Future<Map<String, dynamic>> requestPasswordReset({
+    required String email,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/user/auth/request-password-reset/'), // FIXED URL
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'email': email,
+      }),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? 'Failed to send password reset email');
+    }
+  }
+
+  // FIXED: Validate reset token
+  static Future<Map<String, dynamic>> validateResetToken({
+    required String token,
+    required String uid,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/user/auth/validate-reset-token/'), // FIXED URL
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'uid': uid, // ADDED missing uid parameter
+      }),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? error['detail'] ?? 'Invalid or expired token');
+    }
+  }
+
+  // FIXED: Password Reset - Confirm reset with token
+  static Future<Map<String, dynamic>> confirmPasswordReset({
+    required String token,
+    required String uid,  // ADDED missing uid parameter
+    required String newPassword,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/user/auth/reset-password/'), // FIXED URL
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'uid': uid,  // ADDED missing uid parameter
+        'new_password': newPassword,
+      }),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      final error = jsonDecode(response.body);
+      throw Exception(error['error'] ?? error['detail'] ?? 'Failed to reset password');
+    }
+  }
+  
   // Sacco APIs
   static Future<List<dynamic>> getSaccos() async {
     final response = await http.get(
@@ -124,7 +237,6 @@ class ApiService {
     }
   }
   
-  // ADD THIS MISSING METHOD - Route Detail API
   static Future<Map<String, dynamic>> getRouteDetail(int routeId) async {
     final response = await http.get(
       Uri.parse('$baseUrl/routes/$routeId/'),
@@ -168,9 +280,6 @@ class ApiService {
     }
   }
   
-  
-// ADD THESE METHODS TO YOUR ApiService CLASS
-
   // Get reviews for a specific sacco
   static Future<List<dynamic>> getSaccoReviews(int saccoId) async {
     try {
@@ -208,7 +317,6 @@ class ApiService {
   }
 
   // Create passenger review
- // Updated createPassengerReview method with better error handling
   static Future<Map<String, dynamic>> createPassengerReview({
     required int saccoId,
     required int cleanliness,
@@ -225,7 +333,7 @@ class ApiService {
         'punctuality': punctuality,
         'comfort': comfort,
         'overall': overall,
-        'average': average.toStringAsFixed(2), // Calculate average rating
+        'average': average.toStringAsFixed(2),
         if (comment != null && comment.isNotEmpty) 'comment': comment,
       };
 
@@ -235,11 +343,9 @@ class ApiService {
         body: jsonEncode(body),
       );
 
-
       if (response.statusCode == 201) {
         return jsonDecode(response.body);
       } else {
-        // Try to parse error response
         Map<String, dynamic> errorData;
         try {
           errorData = jsonDecode(response.body);
@@ -247,7 +353,6 @@ class ApiService {
           errorData = {'error': response.body};
         }
         
-        // Create detailed error message
         String errorMessage = 'Failed to create review (${response.statusCode})';
         if (errorData.containsKey('error')) {
           errorMessage += ': ${errorData['error']}';
@@ -268,6 +373,7 @@ class ApiService {
       }
     }
   }
+  
   // User mode switching
   static Future<Map<String, dynamic>> switchUserMode(String mode) async {
     final response = await http.post(
@@ -298,7 +404,7 @@ class ApiService {
     }
   }
 
-  // Get user reviews (replaces the old getPassengerReviews method)
+  // Get user reviews
   static Future<List<dynamic>> getUserReviews({int? limit}) async {
     String url = '$baseUrl/user/my-reviews/';
     if (limit != null) {
@@ -364,7 +470,7 @@ class ApiService {
     }
   }
 
-  // Deactivate user account (optional - for future use)
+  // Deactivate user account
   static Future<Map<String, dynamic>> deactivateAccount() async {
     final response = await http.delete(
       Uri.parse('$baseUrl/user/profile/deactivate/'),
@@ -378,9 +484,9 @@ class ApiService {
     }
   }
 
-  // Add this method to your ApiService class
+  // Submit sacco admin request
   static Future<Map<String, dynamic>> submitSaccoAdminRequest({
-    int? saccoId, // null if creating a new sacco
+    int? saccoId,
     String? saccoName,
     String? location,
     String? dateEstablished,
@@ -405,13 +511,11 @@ class ApiService {
       }
     };
 
-
     final response = await http.post(
       url,
       headers: headers,
       body: jsonEncode(body),
     );
-
 
     if (response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -420,6 +524,12 @@ class ApiService {
     }
   }
 
+  // ADDED: Logout method to clear token
+  static Future<void> logout() async {
+    await removeToken();
+  }
+
+  // Debug methods
   static Future<void> debugAuthStatus() async {
     final token = await getToken();
     print('DEBUG: Current token: ${token ?? 'NO TOKEN'}');
@@ -438,7 +548,6 @@ class ApiService {
     }
   }
 
-  // Call this before submitting the review to ensure user is authenticated
   static Future<bool> isUserAuthenticated() async {
     try {
       final response = await getUserProfile();

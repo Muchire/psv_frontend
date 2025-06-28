@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import '/services/api_service.dart';
 import '/user_app/pages/sacco_detail_page.dart';
+import '../utils/constants.dart';
 
 class RouteDetailPage extends StatefulWidget {
   final int routeId;
   final String? routeName;
 
-  const RouteDetailPage({
-    Key? key,
-    required this.routeId,
-    this.routeName,
-  }) : super(key: key);
+  const RouteDetailPage({Key? key, required this.routeId, this.routeName})
+    : super(key: key);
 
   @override
   State<RouteDetailPage> createState() => _RouteDetailPageState();
@@ -78,7 +76,6 @@ class _RouteDetailPageState extends State<RouteDetailPage>
       setState(() {
         isLoadingReviews = false;
       });
-      // Don't show error for reviews, just log it
       print('Error loading reviews: $e');
     }
   }
@@ -87,17 +84,25 @@ class _RouteDetailPageState extends State<RouteDetailPage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.routeName ?? 'Route Details'),
-        backgroundColor: const Color(0xFF523A28), // AppColors.carafe
-        foregroundColor: Colors.white,
-        elevation: 0,
+        title: Text(
+          widget.routeName ?? 'Route Details',
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 18, color: AppColors.carafe),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.carafe,
+        elevation: 1,
+        iconTheme: const IconThemeData(color: AppColors.carafe),
       ),
-      backgroundColor: const Color(0xFFE4D4C8), // AppColors.sandDollar
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator(
-              color: Color(0xFF523A28), // AppColors.carafe
-            ))
-          : error != null
+      backgroundColor: Colors.white,
+      body:
+          isLoading
+              ? const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.brown,
+                  strokeWidth: 3,
+                ),
+              )
+              : error != null
               ? _buildErrorWidget()
               : _buildContent(),
     );
@@ -105,39 +110,57 @@ class _RouteDetailPageState extends State<RouteDetailPage>
 
   Widget _buildErrorWidget() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(
-            Icons.error_outline,
-            size: 64,
-            color: Color(0xFFA47551), // AppColors.brown
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Failed to load route details',
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: const Color(0xFF523A28), // AppColors.carafe
+      child: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.brown[800],
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: const Icon(Icons.error_outline, size: 48, color: AppColors.tan),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            error!,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: const Color(0xFFA47551), // AppColors.brown
+            const SizedBox(height: 24),
+            Text(
+              'Failed to load route details',
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: AppColors.carafe,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: _loadRouteData,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFA47551), // AppColors.brown
-              foregroundColor: Colors.white,
+            const SizedBox(height: 12),
+            Text(
+              error!,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: AppColors.carafe,
+                height: 1.4,
+              ),
             ),
-            child: const Text('Retry'),
-          ),
-        ],
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadRouteData,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Try Again'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brown,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -147,12 +170,30 @@ class _RouteDetailPageState extends State<RouteDetailPage>
       children: [
         _buildRouteHeader(),
         Container(
-          color: Colors.white,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
           child: TabBar(
             controller: _tabController,
-            labelColor: const Color(0xFF523A28), // AppColors.carafe
-            unselectedLabelColor: const Color(0xFFA47551), // AppColors.brown
-            indicatorColor: const Color(0xFF523A28), // AppColors.carafe
+            labelColor: AppColors.carafe,
+            unselectedLabelColor: AppColors.tan,
+            indicatorColor: AppColors.brown,
+            indicatorWeight: 3,
+            labelStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+            unselectedLabelStyle: const TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+            ),
             tabs: const [
               Tab(text: 'Route Info'),
               Tab(text: 'Sacco Info'),
@@ -177,62 +218,76 @@ class _RouteDetailPageState extends State<RouteDetailPage>
   Widget _buildRouteHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            const Color(0xFF523A28), // AppColors.carafe
-            const Color(0xFF523A28),
-          ],
+          colors: [Colors.white, AppColors.tan.withOpacity(0.1)],
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(
-                Icons.location_on,
-                color: Color(0xFF523A28), // AppColors.carafe
-                size: 24,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '${routeData!['start_location']} → ${routeData!['end_location']}',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.brown.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.route,
+                      color: AppColors.brown,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      '${routeData!['start_location']} → ${routeData!['end_location']}',
+                      style: const TextStyle(
+                        fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: const Color(0xFF523A28), // AppColors.carafe
+                        color: AppColors.carafe,
+                        height: 1.2,
                       ),
-                ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  _buildInfoChip(
+                    icon: Icons.straighten,
+                    label: '${routeData!['distance']} km',
+                    backgroundColor: AppColors.brown,
+                    textColor: Colors.white,
+                  ),
+                  const SizedBox(width: 12),
+                  _buildInfoChip(
+                    icon: Icons.access_time,
+                    label: '${routeData!['duration']} hours',
+                    backgroundColor: AppColors.brown,
+                    textColor: Colors.white,
+                  ),
+                  const SizedBox(width: 12),
+                  _buildInfoChip(
+                    icon: Icons.attach_money,
+                    label: 'KSh ${routeData!['fare']}',
+                    backgroundColor: AppColors.brown,
+                    textColor: Colors.white,
+                  ),
+                ],
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _buildInfoChip(
-                icon: Icons.straighten,
-                label: '${routeData!['distance']} km',
-                color: const Color(0xFFA47551), // AppColors.brown
-              ),
-              const SizedBox(width: 8),
-              _buildInfoChip(
-                icon: Icons.access_time,
-                label: '${routeData!['duration']} min',
-                color: const Color(0xFFD0B49F), // AppColors.tan
-              ),
-              const SizedBox(width: 8),
-              _buildInfoChip(
-                icon: Icons.attach_money,
-                label: 'KSh ${routeData!['fare']}',
-                color: const Color(0xFF523A28), // AppColors.carafe
-              ),
-            ],
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -240,24 +295,31 @@ class _RouteDetailPageState extends State<RouteDetailPage>
   Widget _buildInfoChip({
     required IconData icon,
     required String label,
-    required Color color,
+    required Color backgroundColor,
+    required Color textColor,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: color,
+        color: backgroundColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
+          Icon(icon, size: 16, color: textColor),
+          const SizedBox(width: 6),
           Text(
             label,
             style: TextStyle(
-              color: color,
+              color: textColor,
               fontWeight: FontWeight.w600,
               fontSize: 12,
             ),
@@ -269,12 +331,12 @@ class _RouteDetailPageState extends State<RouteDetailPage>
 
   Widget _buildRouteInfoTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Route Details'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildDetailCard([
             _buildDetailRow('Start Location', routeData!['start_location']),
             _buildDetailRow('End Location', routeData!['end_location']),
@@ -283,9 +345,10 @@ class _RouteDetailPageState extends State<RouteDetailPage>
             _buildDetailRow('Fare', 'KSh ${routeData!['fare']}'),
           ]),
           const SizedBox(height: 24),
-          if (routeData!['stops'] != null && routeData!['stops'].isNotEmpty) ...[
+          if (routeData!['stops'] != null &&
+              routeData!['stops'].isNotEmpty) ...[
             _buildSectionTitle('Route Stops'),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             _buildStopsCard(),
           ],
         ],
@@ -295,30 +358,41 @@ class _RouteDetailPageState extends State<RouteDetailPage>
 
   Widget _buildSaccoInfoTab() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildSectionTitle('Sacco Information'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _buildDetailCard([
             _buildDetailRow('Sacco Name', routeData!['sacco_name']),
             _buildDetailRow('Sacco ID', routeData!['sacco'].toString()),
           ]),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              // Navigate to sacco detail page;
-              Navigator.push(context, MaterialPageRoute(
-                builder: (context) => SaccoDetailPage(saccoId: routeData!['sacco'])
-              ));
-            },
-            icon: const Icon(Icons.info_outline),
-            label: const Text('View Full Sacco Details'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFA47551), // AppColors.brown
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 48),
+          const SizedBox(height: 24),
+          Container(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder:
+                        (context) =>
+                            SaccoDetailPage(saccoId: routeData!['sacco']),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.info_outline),
+              label: const Text('View Full Sacco Details'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brown,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
             ),
           ),
         ],
@@ -328,47 +402,68 @@ class _RouteDetailPageState extends State<RouteDetailPage>
 
   Widget _buildReviewsTab() {
     if (isLoadingReviews) {
-      return const Center(child: CircularProgressIndicator(
-        color: Color(0xFF523A28), // AppColors.carafe
-      ));
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.brown, strokeWidth: 3),
+      );
     }
 
     if (saccoReviews.isEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.rate_review_outlined,
-              size: 64,
-              color: const Color(0xFFD0B49F), // AppColors.tan
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No reviews yet',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: const Color(0xFF523A28), // AppColors.carafe
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.tan.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(50),
+                ),
+                child: const Icon(
+                  Icons.rate_review_outlined,
+                  size: 48,
+                  color: AppColors.brown,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Be the first to review this sacco!',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: const Color(0xFFA47551), // AppColors.brown
+              const SizedBox(height: 24),
+              Text(
+                'No reviews yet',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  color: AppColors.carafe,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () {
-                _showAddReviewDialog();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFA47551), // AppColors.brown
-                foregroundColor: Colors.white,
+              const SizedBox(height: 12),
+              Text(
+                'Be the first to review this sacco!',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.carafe),
+                textAlign: TextAlign.center,
               ),
-              child: const Text('Add Review'),
-            ),
-          ],
+              const SizedBox(height: 24),
+              ElevatedButton.icon(
+                onPressed: () {
+                  _showAddReviewDialog();
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Add Review'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brown,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 32,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -376,23 +471,32 @@ class _RouteDetailPageState extends State<RouteDetailPage>
     return Column(
       children: [
         Container(
-          color: Colors.white,
-          padding: const EdgeInsets.all(16),
+          color: AppColors.tan.withOpacity(0.05),
+          padding: const EdgeInsets.all(20),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
                 'Reviews (${saccoReviews.length})',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: const Color(0xFF523A28), // AppColors.carafe
+                  color: AppColors.carafe,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
               TextButton.icon(
                 onPressed: _showAddReviewDialog,
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add Review'),
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFA47551), // AppColors.brown
+                  foregroundColor: AppColors.brown,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    side: BorderSide(color: AppColors.brown),
+                  ),
                 ),
               ),
             ],
@@ -400,7 +504,7 @@ class _RouteDetailPageState extends State<RouteDetailPage>
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.all(20),
             itemCount: saccoReviews.length,
             itemBuilder: (context, index) {
               return _buildReviewCard(saccoReviews[index]);
@@ -415,28 +519,36 @@ class _RouteDetailPageState extends State<RouteDetailPage>
     return Text(
       title,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF523A28), // AppColors.carafe
-          ),
+        fontWeight: FontWeight.bold,
+        color: AppColors.carafe,
+      ),
     );
   }
 
   Widget _buildDetailCard(List<Widget> children) {
-    return Card(
-      elevation: 2,
-      color: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.tan.withOpacity(0.1)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: children,
-        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(children: children),
       ),
     );
   }
 
   Widget _buildDetailRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -445,8 +557,9 @@ class _RouteDetailPageState extends State<RouteDetailPage>
             child: Text(
               label,
               style: const TextStyle(
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF523A28), // AppColors.carafe
+                fontWeight: FontWeight.w600,
+                color: AppColors.carafe,
+                fontSize: 14,
               ),
             ),
           ),
@@ -454,7 +567,9 @@ class _RouteDetailPageState extends State<RouteDetailPage>
             child: Text(
               value,
               style: const TextStyle(
-                color: Color(0xFFA47551), // AppColors.brown
+                color: AppColors.carafe,
+                fontSize: 14,
+                height: 1.4,
               ),
             ),
           ),
@@ -465,75 +580,101 @@ class _RouteDetailPageState extends State<RouteDetailPage>
 
   Widget _buildStopsCard() {
     final stops = routeData!['stops'] as List;
-    return Card(
-      elevation: 2,
-      color: Colors.white,
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.tan.withOpacity(0.1)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
-          children: stops.asMap().entries.map((entry) {
-            final index = entry.key;
-            final stop = entry.value;
-            final isLast = index == stops.length - 1;
+          children:
+              stops.asMap().entries.map((entry) {
+                final index = entry.key;
+                final stop = entry.value;
+                final isLast = index == stops.length - 1;
 
-            return Row(
-              children: [
-                Column(
+                return Row(
                   children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF523A28), // AppColors.carafe
-                        shape: BoxShape.circle,
+                    Column(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: const BoxDecoration(
+                            color: AppColors.brown,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        if (!isLast)
+                          Container(
+                            width: 2,
+                            height: 32,
+                            color: AppColors.tan,
+                          ),
+                      ],
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Text(
+                          stop['stage_name'],
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.carafe,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                       ),
                     ),
-                    if (!isLast)
-                      Container(
-                        width: 2,
-                        height: 32,
-                        color: const Color(0xFF523A28), // AppColors.carafe
-                      ),
                   ],
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      stop['stage_name'],
-                      style: const TextStyle(
-                        fontSize: 16,
-                        color: Color(0xFF523A28), // AppColors.carafe
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
-          }).toList(),
+                );
+              }).toList(),
         ),
       ),
     );
   }
 
   Widget _buildReviewCard(Map<String, dynamic> review) {
-    return Card(
-      elevation: 1,
-      margin: const EdgeInsets.only(bottom: 12),
-      color: Colors.white,
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: AppColors.tan.withOpacity(0.1)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: const Color(0xFF523A28), // AppColors.carafe
+                  backgroundColor: AppColors.tan,
+                  radius: 20,
                   child: Text(
                     review['user']?.substring(0, 1).toUpperCase() ?? 'U',
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -544,51 +685,76 @@ class _RouteDetailPageState extends State<RouteDetailPage>
                       Text(
                         _getFirstName(review['user']),
                         style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF523A28), // AppColors.carafe
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.carafe,
+                          fontSize: 14,
                         ),
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         review['date_created'] ?? '',
                         style: const TextStyle(
-                          color: Color(0xFFA47551), // AppColors.brown
+                          color: AppColors.carafe,
                           fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                Row(
-                  children: [
-                    const Icon(Icons.star, color: Color(0xFFD0B49F), size: 16), // AppColors.tan
-                    Text(
-                      ' ${review['overall']?.toStringAsFixed(1) ?? 'N/A'}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF523A28), // AppColors.carafe
-                      ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _getRatingColor(
+                      review['overall']?.toDouble() ?? 0.0,
                     ),
-                  ],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.star, color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${review['overall']?.toStringAsFixed(1) ?? 'N/A'}',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Row(
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _buildRatingChip('Cleanliness', review['cleanliness']),
-                const SizedBox(width: 8),
                 _buildRatingChip('Punctuality', review['punctuality']),
-                const SizedBox(width: 8),
                 _buildRatingChip('Comfort', review['comfort']),
               ],
             ),
             if (review['comment'] != null && review['comment'].isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(
-                review['comment'],
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Color(0xFF523A28), // AppColors.carafe
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.tan.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  review['comment'],
+                  style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.carafe,
+                    height: 1.4,
+                  ),
                 ),
               ),
             ],
@@ -602,18 +768,18 @@ class _RouteDetailPageState extends State<RouteDetailPage>
     final ratingValue = rating?.toDouble() ?? 0.0;
     final chipColor = _getRatingColor(ratingValue);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: chipColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: chipColor),
+        color: chipColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: chipColor.withOpacity(0.3)),
       ),
       child: Text(
         '$label: ${ratingValue.toStringAsFixed(1)}',
         style: TextStyle(
           fontSize: 12,
           color: chipColor,
-          fontWeight: FontWeight.w500,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -623,28 +789,28 @@ class _RouteDetailPageState extends State<RouteDetailPage>
     if (fullName == null || fullName.isEmpty) {
       return 'Anonymous';
     }
-    
-    // Split the name by spaces and return the first part
+
     final nameParts = fullName.trim().split(' ');
     return nameParts.isNotEmpty ? nameParts[0] : 'Anonymous';
   }
 
   Color _getRatingColor(double rating) {
-    if (rating >= 4.0) return const Color(0xFF523A28); // AppColors.carafe for high ratings
-    if (rating >= 3.0) return const Color(0xFFA47551); // AppColors.brown for medium ratings
-    return const Color(0xFFD0B49F); // AppColors.tan for low ratings
+    if (rating >= 4.0) return AppColors.brown;
+    if (rating >= 3.0) return AppColors.tan;
+    return AppColors.tan.withOpacity(0.7);
   }
 
   void _showAddReviewDialog() {
     showDialog(
       context: context,
-      builder: (context) => AddReviewDialog(
-        saccoId: routeData!['sacco'],
-        saccoName: routeData!['sacco_name'],
-        onReviewAdded: () {
-          _loadSaccoReviews(routeData!['sacco']);
-        },
-      ),
+      builder:
+          (context) => AddReviewDialog(
+            saccoId: routeData!['sacco'],
+            saccoName: routeData!['sacco_name'],
+            onReviewAdded: () {
+              _loadSaccoReviews(routeData!['sacco']);
+            },
+          ),
     );
   }
 }
@@ -683,11 +849,10 @@ class _AddReviewDialogState extends State<AddReviewDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Text(
         'Review ${widget.saccoName}',
-        style: const TextStyle(
-          color: Color(0xFF523A28), // AppColors.carafe
-        ),
+        style: const TextStyle(color: AppColors.carafe, fontWeight: FontWeight.w600),
       ),
       content: SingleChildScrollView(
         child: Column(
@@ -705,28 +870,31 @@ class _AddReviewDialogState extends State<AddReviewDialog> {
             _buildRatingSlider('Overall', _overall, (value) {
               setState(() => _overall = value);
             }),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             TextField(
               controller: _commentController,
               decoration: InputDecoration(
                 labelText: 'Comment (optional)',
                 hintText: 'Share your experience...',
-                labelStyle: const TextStyle(
-                  color: Color(0xFFA47551), // AppColors.brown
-                ),
+                labelStyle: const TextStyle(color: AppColors.carafe),
+                hintStyle: TextStyle(color: AppColors.carafe.withOpacity(0.6)),
                 border: OutlineInputBorder(
-                  borderSide: const BorderSide(
-                    color: Color(0xFFD0B49F), // AppColors.tan
-                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.tan.withOpacity(0.3)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.tan.withOpacity(0.3)),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(
-                    color: Color(0xFF523A28), // AppColors.carafe
-                    width: 2,
-                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.brown, width: 2),
                 ),
+                filled: true,
+                fillColor: AppColors.tan.withOpacity(0.05),
               ),
               maxLines: 3,
+              style: const TextStyle(color: AppColors.carafe),
             ),
           ],
         ),
@@ -735,94 +903,134 @@ class _AddReviewDialogState extends State<AddReviewDialog> {
         TextButton(
           onPressed: _isSubmitting ? null : () => Navigator.pop(context),
           style: TextButton.styleFrom(
-            foregroundColor: const Color(0xFFA47551), // AppColors.brown
+            foregroundColor: AppColors.carafe,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           ),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
           onPressed: _isSubmitting ? null : _submitReview,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF523A28), // AppColors.carafe
+            backgroundColor: AppColors.brown,
             foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
-          child: _isSubmitting
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-              : const Text('Submit'),
+          child:
+              _isSubmitting
+                  ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                  : const Text('Submit'),
         ),
       ],
     );
   }
 
-  Widget _buildRatingSlider(String label, double value, ValueChanged<double> onChanged) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF523A28), // AppColors.carafe
-          ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: Slider(
-                value: value,
-                min: 1.0,
-                max: 5.0,
-                divisions: 4,
-                label: value.toStringAsFixed(1),
-                onChanged: onChanged,
-                activeColor: const Color(0xFF523A28), // AppColors.carafe
-                inactiveColor: const Color(0xFFD0B49F), // AppColors.tan
-              ),
+  Widget _buildRatingSlider(
+    String label,
+    double value,
+    ValueChanged<double> onChanged,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w600,
+              color: AppColors.carafe,
+              fontSize: 14,
             ),
-            SizedBox(
-              width: 40,
-              child: Text(
-                value.toStringAsFixed(1),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF523A28), // AppColors.carafe
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    activeTrackColor: AppColors.brown,
+                    inactiveTrackColor: AppColors.tan.withOpacity(0.3),
+                    thumbColor: AppColors.brown,
+                    overlayColor: AppColors.brown.withOpacity(0.2),
+                    valueIndicatorColor: AppColors.brown,
+                    valueIndicatorTextStyle: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  child: Slider(
+                    value: value,
+                    min: 1.0,
+                    max: 5.0,
+                    divisions: 4,
+                    label: value.toStringAsFixed(1),
+                    onChanged: onChanged,
+                    ),
                 ),
               ),
-            ),
-          ],
-        ),
-      ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.brown,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  value.toStringAsFixed(1),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Future<void> _submitReview() async {
-    setState(() => _isSubmitting = true);
+    setState(() {
+      _isSubmitting = true;
+    });
 
     try {
       await ApiService.createPassengerReview(
         saccoId: widget.saccoId,
-        cleanliness: _cleanliness.round(),
-        punctuality: _punctuality.round(),
-        comfort: _comfort.round(),
-        overall: _overall.round(),
-        comment: _commentController.text.trim().isEmpty 
-            ? null 
-            : _commentController.text.trim(),
+        cleanliness: _cleanliness.toInt(),
+        punctuality: _punctuality.toInt(),
+        comfort: _comfort.toInt(),
+        overall: _overall.toInt(),
+        comment: _commentController.text.trim(),
       );
 
       if (mounted) {
         Navigator.pop(context);
         widget.onReviewAdded();
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Review submitted successfully!'),
-            backgroundColor: Color(0xFF523A28), // AppColors.carafe
+          SnackBar(
+            content: const Text(
+              'Review submitted successfully!',
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: AppColors.brown,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
@@ -830,14 +1038,24 @@ class _AddReviewDialogState extends State<AddReviewDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit review: $e'),
-            backgroundColor: Color(0xFFA47551), // AppColors.brown
+            content: Text(
+              'Failed to submit review: ${e.toString()}',
+              style: const TextStyle(color: Colors.white),
+            ),
+            backgroundColor: AppColors.tan,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
     } finally {
       if (mounted) {
-        setState(() => _isSubmitting = false);
+        setState(() {
+          _isSubmitting = false;
+        });
       }
     }
   }
