@@ -16,3 +16,7 @@
         <item name="android:windowBackground">?android:colorBackground</item>
     </style>
 </resources>
+<!-- android/app/src/main/res/values/strings.xml -->
+<resources>
+    <string name="default_web_client_id">555273000599-td09gbsac6nfksushhl7jbhsa07odm23.apps.googleusercontent.com</string>
+</resources>

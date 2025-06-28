@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '/services/api_service.dart';
+import '/services/google_auth_service.dart';
 import 'login_page.dart';
 import 'home_page.dart';
 
@@ -17,7 +18,9 @@ class _RegisterPageState extends State<RegisterPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final GoogleAuthService _googleAuthService = GoogleAuthService();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
@@ -38,13 +41,29 @@ class _RegisterPageState extends State<RegisterPage> {
     });
 
     try {
+      print('DEBUG: Starting registration...');
+      
       final response = await ApiService.register(
         username: _usernameController.text.trim(),
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
+      print('DEBUG: Registration response: $response');
+
       if (mounted) {
+        // Verify token was stored
+        final storedToken = await ApiService.getToken();
+        print('DEBUG: Stored token after registration: ${storedToken != null ? 'EXISTS' : 'NULL'}');
+        
+        // Test authentication
+        try {
+          final profile = await ApiService.getUserProfile();
+          print('DEBUG: Profile fetch after registration successful: ${profile['username']}');
+        } catch (e) {
+          print('DEBUG: Profile fetch after registration failed: $e');
+        }
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -60,6 +79,7 @@ class _RegisterPageState extends State<RegisterPage> {
         );
       }
     } catch (e) {
+      print('DEBUG: Registration error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -77,11 +97,72 @@ class _RegisterPageState extends State<RegisterPage> {
     }
   }
 
+  Future<void> _signInWithGoogle() async {
+    setState(() {
+      _isGoogleLoading = true;
+    });
+
+    try {
+      print('DEBUG: Starting Google sign-in...');
+      
+      final result = await _googleAuthService.signInWithGoogle();
+      
+      if (result != null && mounted) {
+        print('DEBUG: Google sign-in successful, result: $result');
+        
+        // Verify token was stored
+        final storedToken = await ApiService.getToken();
+        print('DEBUG: Stored token: ${storedToken != null ? 'EXISTS' : 'NULL'}');
+        
+        // Test authentication
+        try {
+          final profile = await ApiService.getUserProfile();
+          print('DEBUG: Profile fetch successful: ${profile['username']}');
+        } catch (e) {
+          print('DEBUG: Profile fetch failed: $e');
+          // Don't return here, still navigate to home
+        }
+        
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const HomePage(),
+          ),
+        );
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Google sign-in successful!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      } else {
+        print('DEBUG: Google sign-in returned null result');
+      }
+    } catch (e) {
+      print('DEBUG: Google sign-in error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoogleLoading = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Account'),
+        title: const Text('Sign Up'),
         backgroundColor: AppColors.carafe,
         centerTitle: true,
       ),
@@ -106,7 +187,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 children: [
                   // Welcome text
                   Text(
-                    'Join PSV Finder',
+                    'Create Account',
                     style: AppTextStyles.heading1,
                     textAlign: TextAlign.center,
                   ),
@@ -114,7 +195,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   const SizedBox(height: AppDimensions.paddingMedium),
                   
                   Text(
-                    'Create your account to get started',
+                    'Join our community today',
                     style: AppTextStyles.body1.copyWith(
                       color: AppColors.brown,
                     ),
@@ -164,16 +245,15 @@ class _RegisterPageState extends State<RegisterPage> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Please enter your email';
                               }
-                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                  .hasMatch(value.trim())) {
+                              if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value.trim())) {
                                 return 'Please enter a valid email address';
                               }
                               return null;
                             },
                           ),
-
+                          
                           const SizedBox(height: AppDimensions.paddingMedium),
-
+                          
                           // Password field
                           TextFormField(
                             controller: _passwordController,
@@ -198,22 +278,22 @@ class _RegisterPageState extends State<RegisterPage> {
                               if (value == null || value.isEmpty) {
                                 return 'Please enter a password';
                               }
-                              if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
+                              if (value.length < 8) {
+                                return 'Password must be at least 8 characters';
                               }
                               return null;
                             },
                           ),
-
+                          
                           const SizedBox(height: AppDimensions.paddingMedium),
-
-                          // Confirm password field
+                          
+                          // Confirm Password field
                           TextFormField(
                             controller: _confirmPasswordController,
                             obscureText: _obscureConfirmPassword,
                             decoration: InputDecoration(
                               labelText: 'Confirm Password',
-                              prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
+                              prefixIcon: const Icon(Icons.lock_outline, color: AppColors.brown),
                               suffixIcon: IconButton(
                                 icon: Icon(
                                   _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
@@ -237,9 +317,9 @@ class _RegisterPageState extends State<RegisterPage> {
                               return null;
                             },
                           ),
-
+                          
                           const SizedBox(height: AppDimensions.paddingLarge),
-
+                          
                           // Register button
                           SizedBox(
                             width: double.infinity,
@@ -261,22 +341,86 @@ class _RegisterPageState extends State<RegisterPage> {
                                         strokeWidth: 2,
                                       ),
                                     )
-                                  : const Text('Create Account', style: AppTextStyles.button),
+                                  : const Text('Sign Up', style: AppTextStyles.button),
                             ),
                           ),
                         ],
                       ),
                     ),
                   ),
-
+                  
                   const SizedBox(height: AppDimensions.paddingLarge),
-
-                  // Link to login
+                  
+                  // Divider
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: Row(
+                      children: [
+                        const Expanded(child: Divider(color: AppColors.tan)),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: AppDimensions.paddingMedium),
+                          child: Text(
+                            'OR',
+                            style: AppTextStyles.body2.copyWith(color: AppColors.grey),
+                          ),
+                        ),
+                        const Expanded(child: Divider(color: AppColors.tan)),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: AppDimensions.paddingLarge),
+                  
+                  // Google Sign In button
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 300),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _isGoogleLoading ? null : _signInWithGoogle,
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: AppColors.brown),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        icon: _isGoogleLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: AppColors.brown,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Image.asset(
+                                'assets/icons/google_icon.png', // Add Google icon to your assets
+                                height: 20,
+                                width: 20,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return const Icon(Icons.login, color: AppColors.brown);
+                                },
+                              ),
+                        label: Text(
+                          'Continue with Google',
+                          style: AppTextStyles.body1.copyWith(
+                            color: AppColors.brown,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: AppDimensions.paddingLarge),
+                  
+                  // Login link
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Text(
-                        'Already have an account? ',
+                        "Already have an account? ",
                         style: AppTextStyles.body2,
                       ),
                       TextButton(
@@ -297,6 +441,27 @@ class _RegisterPageState extends State<RegisterPage> {
                         ),
                       ),
                     ],
+                  ),
+                  
+                  const SizedBox(height: AppDimensions.paddingLarge),
+                  
+                  // Guest mode
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const HomePage(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      'Continue as Guest',
+                      style: AppTextStyles.body2.copyWith(
+                        decoration: TextDecoration.underline,
+                        color: AppColors.brown,
+                      ),
+                    ),
                   ),
                 ],
               ),

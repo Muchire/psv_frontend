@@ -374,45 +374,6 @@ class VehicleOwnerService {
       throw Exception('Error fetching join requests: $e');
     }
   }
-
-  // // Create join request
-  // static Future<Map<String, dynamic>> createJoinRequest(
-  //   Map<String, dynamic> requestData,
-  // ) async {
-  //   try {
-  //     final headers = await _getHeaders();
-
-  //     final response = await http.post(
-  //       Uri.parse('$baseUrl$vehicleOwnerPath/join-requests/'),
-  //       headers: headers,
-  //       body: json.encode(requestData),
-  //     );
-
-  //     if (response.statusCode == 201) {
-  //       final responseData = json.decode(response.body);
-  //       return responseData;
-  //     } else {
-  //       final errorBody = response.body;
-
-  //       // Try to parse error details
-  //       try {
-  //         final errorData = json.decode(errorBody);
-  //         if (errorData is Map && errorData.containsKey('error')) {
-  //           throw Exception(errorData['error']);
-  //         } else if (errorData is Map) {
-  //           throw Exception('Server error: ${errorData.toString()}');
-  //         }
-  //       } catch (e) {
-  //         // If can't parse as JSON, use raw response
-  //       }
-
-  //       throw Exception('Failed to create join request: ${response.statusCode} - $errorBody');
-  //     }
-  //   } catch (e) {
-  //     throw Exception('Error creating join request: $e');
-  //   }
-  // }
-
   // Get vehicle trips
   static Future<List<dynamic>> getVehicleTrips(dynamic vehicleId) async {
     try {
@@ -1052,58 +1013,7 @@ class VehicleOwnerService {
       rethrow;
     }
   }
-  // Add these methods to your VehicleApiService class
 
-  // // Approve sacco request (called by sacco admin)
-  // static Future<void> approveSaccoRequest(dynamic requestId) async {
-  //   try {
-  //     final response = await http.post(
-  //       Uri.parse('$baseUrl/sacco/requests/$requestId/approve'),
-  //       headers: await ApiService.getHeaders(),
-  //     );
-
-  //     if (response.statusCode == 200) {
-  //       // Success - request approved
-  //       print('Sacco request approved successfully');
-        
-  //       // Optionally invalidate any cached data
-  //       // You might want to trigger a notification or refresh
-  //     } else if (response.statusCode == 403) {
-  //       throw Exception('Unauthorized: Only sacco admins can approve requests');
-  //     } else if (response.statusCode == 404) {
-  //       throw Exception('Sacco request not found');
-  //     } else {
-  //       final errorData = json.decode(response.body);
-  //       throw Exception(errorData['message'] ?? 'Failed to approve sacco request');
-  //     }
-  //   } catch (e) {
-  //     throw Exception('Error approving sacco request: $e');
-  //   }
-  // }
-
-  // // Reject sacco request (called by sacco admin)
-  // static Future<void> rejectSaccoRequest(dynamic requestId, String reason) async {
-  //   try {
-  //     final response = await http.post(
-  //       Uri.parse('$baseUrl/sacco/requests/$requestId/reject'),
-  //       headers: await ApiService.getHeaders(),
-  //       body: json.encode({'reason': reason}),
-  //     );
-
-  //     if (response.statusCode == 200) {
-  //       print('Sacco request rejected successfully');
-  //     } else if (response.statusCode == 403) {
-  //       throw Exception('Unauthorized: Only sacco admins can reject requests');
-  //     } else if (response.statusCode == 404) {
-  //       throw Exception('Sacco request not found');
-  //     } else {
-  //       final errorData = json.decode(response.body);
-  //       throw Exception(errorData['message'] ?? 'Failed to reject sacco request');
-  //     }
-  //   } catch (e) {
-  //     throw Exception('Error rejecting sacco request: $e');
-  //   }
-  // }
 
   // Get vehicle with updated sacco information
   static Future<Map<String, dynamic>> getVehicleWithSacco(dynamic vehicleId) async {
@@ -1231,5 +1141,208 @@ class VehicleOwnerService {
       print('DEBUG: Error in rejectSaccoRequest: $e');
       rethrow;
     }
+  }
+    // Vehicle Registration Method
+  static Future<Map<String, dynamic>> registerVehicle(
+    Map<String, dynamic> vehicleData,
+  ) async {
+    try {
+      final headers = await ApiService.getHeaders();
+
+      // Validate required fields
+      final requiredFields = [
+        'plate_number',
+        'make', 
+        'model',
+        'year',
+        'color',
+        'vehicle_type',
+        'seating_capacity'
+      ];
+
+      for (String field in requiredFields) {
+        if (!vehicleData.containsKey(field) || vehicleData[field] == null) {
+          throw Exception('Missing required field: $field');
+        }
+      }
+
+      // Ensure plate number is uppercase
+      vehicleData['plate_number'] = vehicleData['plate_number'].toString().toUpperCase().trim();
+
+      // Validate vehicle type
+      final validVehicleTypes = ['matatu', 'bus',  'tuk_tuk'];
+      if (!validVehicleTypes.contains(vehicleData['vehicle_type'])) {
+        throw Exception('Invalid vehicle type: ${vehicleData['vehicle_type']}');
+      }
+
+      print('Registering vehicle with data: $vehicleData'); // Debug
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/vehicles/'),
+        headers: headers,
+        body: json.encode(vehicleData),
+      );
+
+      print('Vehicle registration response: ${response.statusCode}'); // Debug
+      print('Response body: ${response.body}'); // Debug
+
+      if (response.statusCode == 201) {
+        final responseData = json.decode(response.body);
+        
+        // Return the vehicle data along with success message
+        return {
+          'success': true,
+          'message': 'Vehicle registered successfully',
+          'vehicle': responseData,
+        };
+      } else if (response.statusCode == 400) {
+        // Handle validation errors
+        final errorData = json.decode(response.body);
+        
+        if (errorData is Map && errorData.containsKey('plate_number')) {
+          // Check if it's a duplicate plate number error
+          final plateErrors = errorData['plate_number'];
+          if (plateErrors is List && plateErrors.isNotEmpty) {
+            if (plateErrors.first.toString().contains('already exists') ||
+                plateErrors.first.toString().contains('duplicate')) {
+              throw Exception('A vehicle with this plate number is already registered');
+            }
+          }
+        }
+        
+        // Handle other validation errors
+        String errorMessage = 'Validation failed: ';
+        if (errorData is Map) {
+          errorData.forEach((key, value) {
+            if (value is List && value.isNotEmpty) {
+              errorMessage += '$key: ${value.first}. ';
+            } else if (value is String) {
+              errorMessage += '$key: $value. ';
+            }
+          });
+        } else {
+          errorMessage += response.body;
+        }
+        
+        throw Exception(errorMessage.trim());
+      } else if (response.statusCode == 401) {
+        throw Exception('Authentication failed. Please log in again.');
+      } else if (response.statusCode == 403) {
+        throw Exception('You do not have permission to register vehicles.');
+      } else {
+        // Handle other error status codes
+        String errorMessage;
+        try {
+          final errorData = json.decode(response.body);
+          errorMessage = errorData['message'] ?? errorData['error'] ?? 'Unknown error occurred';
+        } catch (e) {
+          errorMessage = 'Server error: ${response.statusCode}';
+        }
+        
+        throw Exception(errorMessage);
+      }
+    } catch (e) {
+      // Re-throw with more context if it's our custom exception
+      if (e.toString().startsWith('Exception: ')) {
+        rethrow;
+      }
+      
+      // Handle network/connection errors
+      if (e.toString().contains('SocketException') || 
+          e.toString().contains('Connection failed')) {
+        throw Exception('Network error. Please check your internet connection.');
+      }
+      
+      // Handle timeout errors
+      if (e.toString().contains('TimeoutException')) {
+        throw Exception('Request timeout. Please try again.');
+      }
+      
+      // Generic error
+      throw Exception('Failed to register vehicle: $e');
+    }
+  }
+
+  // Helper method to validate vehicle data before sending
+  static Map<String, String> validateVehicleData(Map<String, dynamic> vehicleData) {
+    final errors = <String, String>{};
+    
+    // Validate plate number format (basic Kenya format)
+    final plateNumber = vehicleData['plate_number']?.toString().trim();
+    if (plateNumber == null || plateNumber.isEmpty) {
+      errors['plate_number'] = 'Plate number is required';
+    } else if (plateNumber.length < 6) {
+      errors['plate_number'] = 'Please enter a valid plate number';
+    }
+    
+    // Validate year
+    final year = vehicleData['year'];
+    if (year != null) {
+      final currentYear = DateTime.now().year;
+      if (year is! int || year < 1980 || year > currentYear + 1) {
+        errors['year'] = 'Please enter a valid year (1980-${currentYear + 1})';
+      }
+    }
+    
+    // Validate seating capacity
+    final capacity = vehicleData['seating_capacity'];
+    if (capacity != null) {
+      if (capacity is! int || capacity < 1 || capacity > 100) {
+        errors['seating_capacity'] = 'Seating capacity must be between 1 and 100';
+      }
+    }
+    
+    // Validate make and model
+    final make = vehicleData['make']?.toString().trim();
+    if (make == null || make.isEmpty) {
+      errors['make'] = 'Vehicle make is required';
+    }
+    
+    final model = vehicleData['model']?.toString().trim();
+    if (model == null || model.isEmpty) {
+      errors['model'] = 'Vehicle model is required';
+    }
+    
+    return errors;
+  }
+
+  // Helper method to get vehicle type display name
+  static String getVehicleTypeDisplayName(String vehicleType) {
+    const displayNames = {
+      'matatu': 'Matatu',
+      'bus': 'Bus', 
+      'taxi': 'Taxi',
+      'boda_boda': 'Boda Boda',
+      'tuk_tuk': 'Tuk Tuk',
+    };
+    return displayNames[vehicleType] ?? vehicleType;
+  }
+
+  // Check if plate number is available
+  static Future<bool> isPlateNumberAvailable(String plateNumber) async {
+    try {
+      final headers = await ApiService.getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/vehicles/check-plate/?plate_number=${plateNumber.toUpperCase()}'),
+        headers: headers,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['available'] ?? false;
+      }
+      
+      return false; // Assume not available if we can't check
+    } catch (e) {
+      print('Error checking plate availability: $e');
+      return false; // Assume not available on error
+    }
+  }
+
+  // Get your existing token method (placeholder)
+  static Future<String?> getToken() async {
+    // Your existing implementation
+    // This should return the stored auth token
+    return null; // Replace with your actual implementation
   }
 }

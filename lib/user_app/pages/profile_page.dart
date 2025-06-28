@@ -5,6 +5,7 @@ import 'welcome_page.dart';
 import 'sacco_admin_request_page.dart';
 import 'sacco_admin_dashboard.dart';
 import 'vehicle_owner_dashboard.dart';
+import 'vehicle_registration.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -101,6 +102,33 @@ class _ProfilePageState extends State<ProfilePage> {
     } finally {
       setState(() => _isSwitchingMode = false);
     }
+  }
+
+  // Show vehicle registration dialog
+  Future<void> _showVehicleRegistrationDialog() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return VehicleRegistrationDialog(
+          onRegistrationSuccess: (response) {
+            // Update the user profile to reflect the new vehicle owner status
+            setState(() {
+              _userProfile!['is_vehicle_owner'] = true;
+              _userProfile!['current_role'] = 'vehicle_owner';
+            });
+            
+            // Navigate to vehicle owner dashboard
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => VehicleOwnerDashboard(),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _updateProfile() async {
@@ -314,15 +342,49 @@ class _ProfilePageState extends State<ProfilePage> {
 
     final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
     final isVehicleOwner = _userProfile!['is_vehicle_owner'] == true;
+    final isSaccoAdmin = _userProfile!['is_sacco_admin'] == true;
 
-    // Show request only if user is passenger and not already a vehicle owner
-    return currentRole == 'passenger' && !isVehicleOwner;
+    // Show request only if user is passenger, not already a vehicle owner, and not a sacco admin
+    return currentRole == 'passenger' && !isVehicleOwner && !isSaccoAdmin;
   }
 
   // Check if user should see sacco admin request option
   bool _shouldShowSaccoAdminRequest() {
     if (_userProfile == null) return false;
-    return !(_userProfile!['is_sacco_admin'] == true);
+    
+    final isSaccoAdmin = _userProfile!['is_sacco_admin'] == true;
+    final isVehicleOwner = _userProfile!['is_vehicle_owner'] == true;
+    
+    // Show request only if user is not already a sacco admin and not a vehicle owner
+    return !isSaccoAdmin && !isVehicleOwner;
+  }
+
+  // Helper method to get role display name
+  String _getRoleDisplayName(String role) {
+    switch (role) {
+      case 'vehicle_owner':
+        return 'Vehicle Owner';
+      case 'sacco_admin':
+        return 'SACCO Admin';
+      case 'passenger':
+        return 'Passenger';
+      default:
+        return 'Passenger';
+    }
+  }
+
+  // Helper method to get role icon
+  IconData _getRoleIcon(String role) {
+    switch (role) {
+      case 'vehicle_owner':
+        return Icons.directions_car;
+      case 'sacco_admin':
+        return Icons.admin_panel_settings;
+      case 'passenger':
+        return Icons.person;
+      default:
+        return Icons.person;
+    }
   }
 
   @override
@@ -345,56 +407,54 @@ class _ProfilePageState extends State<ProfilePage> {
                   break;
               }
             },
-            itemBuilder:
-                (context) => [
-                  const PopupMenuItem(
-                    value: 'edit',
-                    child: Row(
-                      children: [
-                        Icon(Icons.edit, color: AppColors.brown),
-                        SizedBox(width: 8),
-                        Text('Edit Profile'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'password',
-                    child: Row(
-                      children: [
-                        Icon(Icons.lock, color: AppColors.brown),
-                        SizedBox(width: 8),
-                        Text('Change Password'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'logout',
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout, color: AppColors.error),
-                        SizedBox(width: 8),
-                        Text('Logout'),
-                      ],
-                    ),
-                  ),
-                ],
-          ),
-        ],
-      ),
-      body:
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                child: Column(
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
                   children: [
-                    _buildProfileHeader(),
-                    _buildUserModeSection(),
-                    _buildStatsSection(),
-                    _buildRecentReviewsSection(),
-                    _buildSettingsSection(),
+                    Icon(Icons.edit, color: AppColors.brown),
+                    SizedBox(width: 8),
+                    Text('Edit Profile'),
                   ],
                 ),
               ),
+              const PopupMenuItem(
+                value: 'password',
+                child: Row(
+                  children: [
+                    Icon(Icons.lock, color: AppColors.brown),
+                    SizedBox(width: 8),
+                    Text('Change Password'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, color: AppColors.error),
+                    SizedBox(width: 8),
+                    Text('Logout'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildProfileHeader(),
+                  _buildUserModeSection(),
+                  _buildStatsSection(),
+                  _buildRecentReviewsSection(),
+                  _buildSettingsSection(),
+                ],
+              ),
+            ),
     );
   }
 
@@ -402,10 +462,9 @@ class _ProfilePageState extends State<ProfilePage> {
     final firstName = _userProfile?['first_name'] ?? '';
     final lastName = _userProfile?['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final displayName =
-        fullName.isNotEmpty
-            ? fullName
-            : _userProfile?['username'] ?? 'Unknown User';
+    final displayName = fullName.isNotEmpty
+        ? fullName
+        : _userProfile?['username'] ?? 'Unknown User';
 
     return Container(
       width: double.infinity,
@@ -484,465 +543,356 @@ class _ProfilePageState extends State<ProfilePage> {
                         size: 16,
                       ),
                       dropdownColor: AppColors.white,
-                      onChanged:
-                          _isSwitchingMode
-                              ? null
-                              : (String? newRole) {
-                                if (newRole != null &&
-                                    newRole != _userProfile?['current_role']) {
-                                  _switchUserMode(newRole);
-                                }
-                              },
-                      items:
-                          _getAvailableRolesForDropdown()
-                              .map<DropdownMenuItem<String>>((String role) {
-                                return DropdownMenuItem<String>(
-                                  value: role,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        _getRoleIcon(role),
-                                        size: 16,
-                                        color: AppColors.brown,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        _getRoleDisplayName(role),
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.brown,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              })
-                              .toList(),
+                      onChanged: _isSwitchingMode
+                          ? null
+                          : (String? newRole) {
+                              if (newRole != null &&
+                                  newRole != _userProfile?['current_role']) {
+                                _switchUserMode(newRole);
+                              }
+                            },
+                      items: _getAvailableRolesForDropdown()
+                          .map<DropdownMenuItem<String>>((String role) {
+                        return DropdownMenuItem<String>(
+                          value: role,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                _getRoleIcon(role),
+                                size: 16,
+                                color: AppColors.brown,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _getRoleDisplayName(role),
+                                style: const TextStyle(
+                                  color: AppColors.brown,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ),
               ],
             ],
           ),
-          const SizedBox(height: AppDimensions.paddingSmall),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUserModeSection() {
+    return Container(
+      margin: const EdgeInsets.all(AppDimensions.paddingMedium),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            'Member since ${_formatDate(_userProfile?['date_joined'])}',
-            style: AppTextStyles.caption,
+            'Account Access',
+            style: AppTextStyles.heading2,
+          ),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          
+          // Vehicle Owner Request/Registration
+          if (_shouldShowVehicleOwnerRequest()) ...[
+            _buildActionCard(
+              icon: Icons.directions_car,
+              title: 'Become a Vehicle Owner',
+              subtitle: 'Register your vehicle and start offering transport services',
+              buttonText: 'Register Vehicle',
+              onTap: _showVehicleRegistrationDialog,
+              color: AppColors.brown,
+            ),
+            const SizedBox(height: AppDimensions.paddingSmall),
+          ],
+          
+          // SACCO Admin Request
+          if (_shouldShowSaccoAdminRequest()) ...[
+            _buildActionCard(
+              icon: Icons.admin_panel_settings,
+              title: 'Become a SACCO Admin',
+              subtitle: 'Apply to manage SACCO operations and oversee vehicles',
+              buttonText: 'Request Access',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SaccoAdminRequestPage(),
+                  ),
+                );
+              },
+              color: AppColors.carafe,
+            ),
+          ],
+
+          // If user can't access any new roles, show info
+          if (!_shouldShowVehicleOwnerRequest() && !_shouldShowSaccoAdminRequest()) ...[
+            Container(
+              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+              decoration: BoxDecoration(
+                color: AppColors.lightGrey,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: AppColors.brown),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'You have access to all available account types.',
+                      style: AppTextStyles.body2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionCard({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String buttonText,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: AppDimensions.paddingMedium),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: AppTextStyles.heading3),
+                Text(subtitle, style: AppTextStyles.caption),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: onTap,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: AppColors.white,
+            ),
+            child: Text(buttonText),
           ),
         ],
       ),
     );
   }
 
-  String _getRoleDisplayName(String role) {
-    switch (role) {
-      case 'passenger':
-        return 'PASSENGER';
-      case 'vehicle_owner':
-        return 'VEHICLE OWNER';
-      case 'sacco_admin':
-        return 'SACCO ADMIN';
-      default:
-        return role.toUpperCase();
-    }
-  }
-
-  String _formatDate(String? dateString) {
-    if (dateString == null) return 'Unknown';
-    try {
-      final date = DateTime.parse(dateString);
-      return '${date.day}/${date.month}/${date.year}';
-    } catch (e) {
-      return dateString;
-    }
-  }
-
-  Widget _buildUserModeSection() {
-    if (_userProfile == null) {
-      return const SizedBox.shrink();
-    }
-
-    final shouldShowVehicleOwnerRequest = _shouldShowVehicleOwnerRequest();
-    final shouldShowSaccoAdminRequest = _shouldShowSaccoAdminRequest();
-    final currentRole = _userProfile?['current_role'] as String? ?? 'passenger';
-
-    // If no requests are needed, don't show this section
-    if (!shouldShowVehicleOwnerRequest && !shouldShowSaccoAdminRequest) {
-      return const SizedBox.shrink();
-    }
-
+  Widget _buildStatsSection() {
     return Container(
-      margin: const EdgeInsets.all(16.0),
-      child: Column(
-        children: [
-          // Vehicle Owner Request
-          if (shouldShowVehicleOwnerRequest) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Become a Vehicle Owner',
-                      style: AppTextStyles.heading3,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Register your vehicle and start earning by providing transport services',
-                      style: AppTextStyles.body2,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // TODO: Navigate to vehicle owner registration page
-                          _showSuccessSnackBar(
-                            'Vehicle owner registration coming soon!',
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brown,
-                          foregroundColor: AppColors.white,
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                        icon: const Icon(Icons.directions_car),
-                        label: const Text('Register as Vehicle Owner'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-
-          // Sacco Admin Request
-          if (shouldShowSaccoAdminRequest) ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Become a Sacco Admin', style: AppTextStyles.heading3),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Request to become a Sacco Admin to manage transport services',
-                      style: AppTextStyles.body2,
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder:
-                                  (context) => const SaccoAdminRequestPage(),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brown,
-                          foregroundColor: AppColors.white,
-                          minimumSize: const Size(double.infinity, 48),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                          ),
-                        ),
-                        icon: const Icon(Icons.admin_panel_settings),
-                        label: const Text('Request to be a Sacco Admin'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-
-          // Quick access to admin dashboard if user is already admin but in different mode
-          if (_userProfile!['is_sacco_admin'] == true &&
-              currentRole != 'sacco_admin') ...[
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.admin_panel_settings,
-                      size: 48,
-                      color: AppColors.brown,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'You are a Sacco Admin!',
-                      style: AppTextStyles.heading3,
-                    ),
-                    Text(
-                      'Switch to admin mode using the dropdown above',
-                      style: AppTextStyles.body2,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+      margin: const EdgeInsets.all(AppDimensions.paddingMedium),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
         ],
       ),
-    );
-  }
-
-  IconData _getRoleIcon(String role) {
-    switch (role) {
-      case 'passenger':
-        return Icons.person;
-      case 'vehicle_owner':
-        return Icons.directions_car;
-      case 'sacco_admin':
-        return Icons.admin_panel_settings;
-      default:
-        return Icons.person;
-    }
-  }
-
-  Widget _buildStatsSection() {
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppDimensions.paddingMedium,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Your Activity', style: AppTextStyles.heading3),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildStatItem(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Your Stats', style: AppTextStyles.heading2),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatItem(
+                  'Total Trips',
+                  _userProfile?['total_trips']?.toString() ?? '0',
+                  Icons.route,
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem(
+                  'Rating',
+                  _userProfile?['average_rating']?.toStringAsFixed(1) ?? '0.0',
+                  Icons.star,
+                ),
+              ),
+              Expanded(
+                child: _buildStatItem(
                   'Reviews',
-                  '${_userProfile?['reviews_count'] ?? 0}',
+                  _userProfile?['total_reviews']?.toString() ?? '0',
                   Icons.rate_review,
                 ),
-                _buildStatItem('Trips', '0', Icons.directions_bus),
-                _buildStatItem(
-                  'Account Status',
-                  _userProfile?['is_active'] == true ? 'Active' : 'Inactive',
-                  _userProfile?['is_active'] == true
-                      ? Icons.check_circle
-                      : Icons.cancel,
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildStatItem(String label, String value, IconData icon) {
-    return Expanded(
+    return Container(
+      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.brown, size: 32),
-          const SizedBox(height: AppDimensions.paddingSmall),
+          Icon(icon, color: AppColors.brown, size: 24),
+          const SizedBox(height: 4),
           Text(
             value,
             style: AppTextStyles.heading2.copyWith(color: AppColors.brown),
-            textAlign: TextAlign.center,
           ),
-          Text(
-            label,
-            style: AppTextStyles.caption,
-            textAlign: TextAlign.center,
-          ),
+          Text(label, style: AppTextStyles.caption),
         ],
       ),
     );
   }
 
   Widget _buildRecentReviewsSection() {
-    return Card(
+    return Container(
       margin: const EdgeInsets.all(AppDimensions.paddingMedium),
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('Recent Reviews', style: AppTextStyles.heading3),
-                TextButton(
-                  onPressed: () {
-                    // Navigate to full reviews page
-                  },
-                  child: const Text('View All'),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            _isLoadingReviews
-                ? const Center(child: CircularProgressIndicator())
-                : _userReviews.isEmpty
-                ? Center(
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.rate_review_outlined,
-                        size: 48,
-                        color: AppColors.grey,
-                      ),
-                      const SizedBox(height: AppDimensions.paddingSmall),
-                      Text('No reviews yet', style: AppTextStyles.body2),
-                      Text(
-                        'Start reviewing saccos to help other users',
-                        style: AppTextStyles.caption,
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                )
-                : Column(
-                  children:
-                      _userReviews.map((review) {
-                        return _buildReviewItem(review);
-                      }).toList(),
-                ),
-          ],
-        ),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Recent Reviews', style: AppTextStyles.heading2),
+          const SizedBox(height: AppDimensions.paddingMedium),
+          if (_isLoadingReviews)
+            const Center(child: CircularProgressIndicator())
+          else if (_userReviews.isEmpty)
+            Center(
+              child: Text(
+                'No reviews yet',
+                style: AppTextStyles.body2.copyWith(color: Colors.grey),
+              ),
+            )
+          else
+            ..._userReviews.map((review) => _buildReviewItem(review)).toList(),
+        ],
       ),
     );
   }
 
   Widget _buildReviewItem(Map<String, dynamic> review) {
-    final rating = review['overall'] ?? 0;
-
     return Container(
-      margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      margin: const EdgeInsets.only(bottom: AppDimensions.paddingSmall),
+      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
       decoration: BoxDecoration(
         color: AppColors.lightGrey,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      review['sacco_name'] ?? 'Unknown Sacco',
-                      style: AppTextStyles.body1.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'As ${_getRoleDisplayName(review['role'] ?? 'passenger')}',
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                children: [
-                  Row(
-                    children: List.generate(5, (index) {
-                      return Icon(
-                        index < rating ? Icons.star : Icons.star_border,
-                        size: 16,
-                        color: AppColors.warning,
-                      );
-                    }),
-                  ),
-                  Text(
-                    'Avg: ${review['average']?.toStringAsFixed(1) ?? '0.0'}',
-                    style: AppTextStyles.caption,
-                  ),
-                ],
+              ...List.generate(5, (index) {
+                return Icon(
+                  index < (review['rating'] ?? 0)
+                      ? Icons.star
+                      : Icons.star_border,
+                  color: AppColors.brown,
+                  size: 16,
+                );
+              }),
+              const Spacer(),
+              Text(
+                review['created_at'] ?? '',
+                style: AppTextStyles.caption,
               ),
             ],
           ),
-          if (review['comment'] != null &&
-              review['comment'].toString().isNotEmpty) ...[
-            const SizedBox(height: AppDimensions.paddingSmall),
-            Text(
-              review['comment'].toString(),
-              style: AppTextStyles.body2,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+          if (review['comment'] != null && review['comment'].isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(review['comment'], style: AppTextStyles.body2),
           ],
-          const SizedBox(height: AppDimensions.paddingSmall),
-          Text(review['created_at'] ?? '', style: AppTextStyles.caption),
         ],
       ),
     );
   }
 
   Widget _buildSettingsSection() {
-    return Card(
+    return Container(
       margin: const EdgeInsets.all(AppDimensions.paddingMedium),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 4,
+            offset: Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-            child: Text('Settings', style: AppTextStyles.heading3),
-          ),
+          Text('Settings', style: AppTextStyles.heading2),
+          const SizedBox(height: AppDimensions.paddingMedium),
           ListTile(
             leading: const Icon(Icons.edit, color: AppColors.brown),
             title: const Text('Edit Profile'),
-            subtitle: const Text('Update your personal information'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: _updateProfile,
           ),
           ListTile(
             leading: const Icon(Icons.lock, color: AppColors.brown),
             title: const Text('Change Password'),
-            subtitle: const Text('Update your account password'),
             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: _changePassword,
           ),
           ListTile(
-            leading: const Icon(Icons.help, color: AppColors.brown),
-            title: const Text('Help & Support'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              // Navigate to help page
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.info, color: AppColors.brown),
-            title: const Text('About'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              showAboutDialog(
-                context: context,
-                applicationName: 'PSV Finder',
-                applicationVersion: '1.0.0',
-                applicationLegalese: '© 2025 PSV Finder. All rights reserved.',
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
             leading: const Icon(Icons.logout, color: AppColors.error),
-            title: const Text(
-              'Logout',
-              style: TextStyle(color: AppColors.error),
-            ),
+            title: const Text('Logout'),
+            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
             onTap: _logout,
           ),
         ],
