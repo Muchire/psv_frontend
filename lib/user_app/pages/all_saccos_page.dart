@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../utils/constants.dart';
-// import '../widgets/loading_widget.dart';
-// import '../widgets/error_widget.dart';
 
 class AllSaccosPage extends StatefulWidget {
   final List<dynamic> saccos;
@@ -19,126 +17,490 @@ class AllSaccosPage extends StatefulWidget {
 
 class _AllSaccosPageState extends State<AllSaccosPage> {
   List<dynamic> _filteredSaccos = [];
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-  String _selectedFilter = 'all'; // 'all', 'route', 'sacco', 'location'
-  bool _showRouteSearch = false;
+  List<dynamic> _searchResults = [];
   String _sortBy = 'name'; // 'name', 'rating', 'vehicle_count'
   bool _sortAscending = true;
+  String _selectedTab = 'all'; // 'all', 'search'
+  List<String> _recentSearches = [];
+
+  // Controllers for search dialogs - removed location search controller
+  final TextEditingController _generalSearchController = TextEditingController();
+  final TextEditingController _routeSearchController = TextEditingController();
+
+  bool _isGeneralSearching = false;
+  bool _isRouteSearching = false;
 
   @override
   void initState() {
     super.initState();
     _filteredSaccos = List.from(widget.saccos);
-    _searchController.addListener(_onSearchChanged);
     _applySorting();
   }
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _generalSearchController.dispose();
+    _routeSearchController.dispose();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    setState(() {
-      _searchQuery = _searchController.text.toLowerCase();
-      _filterAndSortSaccos();
-    });
-  }
-
-  // Replace your _filterAndSortSaccos method with this updated version
-  void _filterAndSortSaccos() {
-    // First filter
-    if (_searchQuery.isEmpty) {
-      _filteredSaccos = List.from(widget.saccos);
-    } else {
-      _filteredSaccos = widget.saccos.where((sacco) {
-        final name = (sacco['name']?.toString() ?? '').toLowerCase();
-        final location = (sacco['location']?.toString() ?? '').toLowerCase();
-        
-        // Handle routes - extract route strings from your nested structure
-        String routesText = '';
-        final routes = sacco['routes'] as List<dynamic>? ?? [];
-        if (routes.isNotEmpty) {
-          final routeStrings = <String>[];
-          for (final route in routes) {
-            final routeData = route['routes'] as List<dynamic>? ?? [];
-            for (final r in routeData) {
-              final startLocation = r['start_location']?.toString() ?? '';
-              final endLocation = r['end_location']?.toString() ?? '';
-              if (startLocation.isNotEmpty && endLocation.isNotEmpty) {
-                routeStrings.add('$startLocation - $endLocation');
-              }
-            }
-          }
-          routesText = routeStrings.join(' ').toLowerCase();
-        }
-        
-        switch (_selectedFilter) {
-          case 'route':
-            return routesText.contains(_searchQuery);
-          case 'sacco':
-            return name.contains(_searchQuery);
-          case 'location':
-            return location.contains(_searchQuery);
-          case 'all':
-          default:
-            return name.contains(_searchQuery) || 
-                  location.contains(_searchQuery) || 
-                  routesText.contains(_searchQuery);
-        }
-      }).toList();
+  // Helper method to safely get numeric value
+  int _safeGetInt(dynamic value, {int defaultValue = 0}) {
+    if (value == null) return defaultValue;
+    if (value is int) return value;
+    if (value is double) return value.toInt();
+    if (value is String) {
+      final parsed = int.tryParse(value);
+      return parsed ?? defaultValue;
     }
-    
-    // Then sort
-    _applySorting();
+    if (value is Map) {
+      // If it's a map, try to get a count or length
+      return value.length;
+    }
+    if (value is List) {
+      return value.length;
+    }
+    return defaultValue;
   }
 
-  // Replace your _applySorting method with this updated version
+  // Helper method to safely get double value
+  double _safeGetDouble(dynamic value, {double defaultValue = 0.0}) {
+    if (value == null) return defaultValue;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) {
+      final parsed = double.tryParse(value);
+      return parsed ?? defaultValue;
+    }
+    return defaultValue;
+  }
+
+  // Helper method to safely get string value
+  String _safeGetString(dynamic value, {String defaultValue = ''}) {
+    if (value == null) return defaultValue;
+    return value.toString();
+  }
+
+  // Helper method to calculate route count
+  int _calculateRouteCount(dynamic sacco) {
+    try {
+      // First try to get total_routes directly
+      final totalRoutes = sacco['total_routes'];
+      if (totalRoutes != null && totalRoutes is int) {
+        return totalRoutes;
+      }
+
+      // If that fails, calculate from routes array
+      final routes = sacco['routes'];
+      if (routes == null) return 0;
+      
+      if (routes is List) {
+        int count = 0;
+        for (final route in routes) {
+          if (route is Map<String, dynamic> && route.containsKey('routes')) {
+            final routeData = route['routes'];
+            if (routeData is List) {
+              count += routeData.length;
+            }
+          } else if (route is Map) {
+            count += 1;
+          }
+        }
+        return count;
+      }
+      
+      return 0;
+    } catch (e) {
+      print('Error calculating route count: $e');
+      return 0;
+    }
+  }
+
   void _applySorting() {
-    _filteredSaccos.sort((a, b) {
+    final listToSort = _selectedTab == 'search' ? _searchResults : _filteredSaccos;
+    
+    listToSort.sort((a, b) {
       dynamic aValue, bValue;
       
-      switch (_sortBy) {
-        case 'rating':
-          // Calculate average rating from your data structure
-          final aOwnerRating = (a['avg_owner_rating'] ?? 0.0) as double;
-          final aPassengerRating = (a['avg_passenger_rating'] ?? 0.0) as double;
-          aValue = aOwnerRating > 0 || aPassengerRating > 0 
-              ? (aOwnerRating + aPassengerRating) / 2 
-              : 0.0;
-              
-          final bOwnerRating = (b['avg_owner_rating'] ?? 0.0) as double;
-          final bPassengerRating = (b['avg_passenger_rating'] ?? 0.0) as double;
-          bValue = bOwnerRating > 0 || bPassengerRating > 0 
-              ? (bOwnerRating + bPassengerRating) / 2 
-              : 0.0;
-          break;
-        case 'vehicle_count':
-          // Use total_routes from your data structure
-          aValue = a['total_routes'] ?? 0;
-          bValue = b['total_routes'] ?? 0;
-          break;
-        case 'name':
-        default:
-          aValue = (a['name']?.toString() ?? '').toLowerCase();
-          bValue = (b['name']?.toString() ?? '').toLowerCase();
-          break;
+      try {
+        switch (_sortBy) {
+          case 'rating':
+            final aOwnerRating = _safeGetDouble(a['avg_owner_rating']);
+            final aPassengerRating = _safeGetDouble(a['avg_passenger_rating']);
+            aValue = aOwnerRating > 0 || aPassengerRating > 0 
+                ? (aOwnerRating + aPassengerRating) / 2 
+                : 0.0;
+                
+            final bOwnerRating = _safeGetDouble(b['avg_owner_rating']);
+            final bPassengerRating = _safeGetDouble(b['avg_passenger_rating']);
+            bValue = bOwnerRating > 0 || bPassengerRating > 0 
+                ? (bOwnerRating + bPassengerRating) / 2 
+                : 0.0;
+            break;
+          case 'vehicle_count':
+            aValue = _calculateRouteCount(a);
+            bValue = _calculateRouteCount(b);
+            break;
+          case 'name':
+          default:
+            aValue = _safeGetString(a['name']).toLowerCase();
+            bValue = _safeGetString(b['name']).toLowerCase();
+            break;
+        }
+        
+        int comparison;
+        if (aValue is String && bValue is String) {
+          comparison = aValue.compareTo(bValue);
+        } else if (aValue is num && bValue is num) {
+          comparison = aValue.compareTo(bValue);
+        } else {
+          comparison = aValue.toString().compareTo(bValue.toString());
+        }
+        
+        return _sortAscending ? comparison : -comparison;
+      } catch (e) {
+        print('Error in sorting: $e');
+        // Fallback to name sorting if there's an error
+        final aName = _safeGetString(a['name']).toLowerCase();
+        final bName = _safeGetString(b['name']).toLowerCase();
+        return _sortAscending ? aName.compareTo(bName) : bName.compareTo(aName);
       }
-      
-      int comparison;
-      if (aValue is String && bValue is String) {
-        comparison = aValue.compareTo(bValue);
-      } else if (aValue is num && bValue is num) {
-        comparison = aValue.compareTo(bValue);
-      } else {
-        comparison = aValue.toString().compareTo(bValue.toString());
-      }
-      
-      return _sortAscending ? comparison : -comparison;
     });
   }
+
+  Future<void> _performGeneralSearch() async {
+    if (_generalSearchController.text.isEmpty) {
+      _showErrorSnackBar('Please enter a search term');
+      return;
+    }
+
+    setState(() => _isGeneralSearching = true);
+    
+    try {
+      await Future.delayed(const Duration(milliseconds: 300)); // Simulate search delay
+      
+      final query = _generalSearchController.text.toLowerCase();
+      final results = widget.saccos.where((sacco) {
+        final name = _safeGetString(sacco['name']).toLowerCase();
+        final location = _safeGetString(sacco['location']).toLowerCase();
+        final email = _safeGetString(sacco['email']).toLowerCase();
+        final contact = _safeGetString(sacco['contact_number']).toLowerCase();
+        
+        return name.contains(query) || 
+               location.contains(query) || 
+               email.contains(query) || 
+               contact.contains(query);
+      }).toList();
+
+      // Add to recent searches
+      if (!_recentSearches.contains(query)) {
+        setState(() {
+          _recentSearches.insert(0, _generalSearchController.text);
+          if (_recentSearches.length > 5) {
+            _recentSearches.removeLast();
+          }
+        });
+      }
+
+      setState(() {
+        _searchResults = results;
+        _selectedTab = 'search';
+      });
+      
+      _applySorting();
+      Navigator.pop(context); // Close the dialog
+    } catch (e) {
+      _showErrorSnackBar('Search failed: $e');
+    } finally {
+      setState(() => _isGeneralSearching = false);
+    }
+  }
+
+  Future<void> _performRouteSearch() async {
+    if (_routeSearchController.text.isEmpty) {
+      _showErrorSnackBar('Please enter a route to search');
+      return;
+    }
+
+    setState(() => _isRouteSearching = true);
+    
+    try {
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      final query = _routeSearchController.text.toLowerCase();
+      final results = widget.saccos.where((sacco) {
+        try {
+          final routes = sacco['routes'];
+          String routesText = '';
+          
+          if (routes is List && routes.isNotEmpty) {
+            final routeStrings = <String>[];
+            for (final route in routes) {
+              if (route is Map<String, dynamic> && route.containsKey('routes')) {
+                final routeData = route['routes'];
+                if (routeData is List) {
+                  for (final r in routeData) {
+                    if (r is Map) {
+                      final startLocation = _safeGetString(r['start_location']);
+                      final endLocation = _safeGetString(r['end_location']);
+                      if (startLocation.isNotEmpty && endLocation.isNotEmpty) {
+                        routeStrings.add('$startLocation - $endLocation');
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            routesText = routeStrings.join(' ').toLowerCase();
+          }
+          
+          return routesText.contains(query);
+        } catch (e) {
+          print('Error searching routes for sacco: $e');
+          return false;
+        }
+      }).toList();
+
+      // Add to recent searches
+      if (!_recentSearches.contains(query)) {
+        setState(() {
+          _recentSearches.insert(0, _routeSearchController.text);
+          if (_recentSearches.length > 5) {
+            _recentSearches.removeLast();
+          }
+        });
+      }
+
+      setState(() {
+        _searchResults = results;
+        _selectedTab = 'search';
+      });
+      
+      _applySorting();
+      Navigator.pop(context);
+    } catch (e) {
+      _showErrorSnackBar('Route search failed: $e');
+    } finally {
+      setState(() => _isRouteSearching = false);
+    }
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+      ),
+    );
+  }
+
+  void _showGeneralSearchDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Search Saccos',
+                      style: AppTextStyles.heading2,
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _generalSearchController,
+                  decoration: InputDecoration(
+                    labelText: 'Search by name, location, contact...',
+                    prefixIcon: const Icon(Icons.search, color: AppColors.brown),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                if (_recentSearches.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Recent Searches',
+                    style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...(_recentSearches.take(3).map((search) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.history, color: AppColors.grey),
+                      title: Text(search, style: AppTextStyles.body2),
+                      onTap: () {
+                        _generalSearchController.text = search;
+                      },
+                    );
+                  })),
+                ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isGeneralSearching ? null : _performGeneralSearch,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.brown,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isGeneralSearching
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                            ),
+                          )
+                        : const Text('Search Saccos'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showRouteSearchDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Search by Route',
+                      style: AppTextStyles.heading2,
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: _routeSearchController,
+                  decoration: InputDecoration(
+                    labelText: 'Route (e.g., Nairobi-Nakuru, CBD-Westlands)',
+                    prefixIcon: const Icon(Icons.route, color: AppColors.orange),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 16, color: AppColors.orange),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Search Tips:',
+                            style: AppTextStyles.body2.copyWith(
+                              color: AppColors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '• Search for routes like "Nairobi-Nakuru"\n• Try partial matches like "CBD" or "Westlands"\n• Search for route numbers like "Route 46"',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_recentSearches.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  Text(
+                    'Recent Searches',
+                    style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  ...(_recentSearches.take(3).map((search) {
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.history, color: AppColors.grey),
+                      title: Text(search, style: AppTextStyles.body2),
+                      onTap: () {
+                        _routeSearchController.text = search;
+                      },
+                    );
+                  })),
+                ],
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _isRouteSearching ? null : _performRouteSearch,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.orange,
+                      foregroundColor: AppColors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isRouteSearching
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                            ),
+                          )
+                        : const Text('Search Routes'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showSortDialog() {
     showDialog(
       context: context,
@@ -215,7 +577,7 @@ class _AllSaccosPageState extends State<AllSaccosPage> {
               onPressed: () {
                 Navigator.of(context).pop();
                 setState(() {
-                  _filterAndSortSaccos();
+                  _applySorting();
                 });
               },
               style: ElevatedButton.styleFrom(
@@ -232,10 +594,13 @@ class _AllSaccosPageState extends State<AllSaccosPage> {
 
   @override
   Widget build(BuildContext context) {
+    final currentList = _selectedTab == 'search' ? _searchResults : _filteredSaccos;
+    
     return Scaffold(
+      backgroundColor: AppColors.white,
       appBar: AppBar(
         title: Text(
-          'All Saccos (${_filteredSaccos.length})',
+          'All Saccos (${currentList.length})',
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         backgroundColor: AppColors.brown,
@@ -243,263 +608,181 @@ class _AllSaccosPageState extends State<AllSaccosPage> {
         elevation: 2,
         actions: [
           IconButton(
-            icon: Icon(
-              _showRouteSearch ? Icons.search_off : Icons.route,
-              color: _showRouteSearch ? AppColors.orange : AppColors.white,
-            ),
-            onPressed: () {
-              setState(() {
-                _showRouteSearch = !_showRouteSearch;
-                if (_showRouteSearch) {
-                  _selectedFilter = 'route';
-                  _searchController.text = '';
-                } else {
-                  _selectedFilter = 'all';
-                  _searchController.text = '';
-                }
-                _filterAndSortSaccos();
-              });
-            },
-            tooltip: _showRouteSearch ? 'Exit Route Search' : 'Search by Route',
-          ),
-          IconButton(
             icon: const Icon(Icons.sort),
             onPressed: _showSortDialog,
             tooltip: 'Sort Saccos',
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildSearchSection(),
-          Expanded(
-            child: _buildSaccosList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSearchSection() {
-    return Container(
-      color: _showRouteSearch ? AppColors.orange.withOpacity(0.05) : AppColors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        child: Column(
-          children: [
-            if (_showRouteSearch) ...[
-              Container(
-                padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          setState(() {
+            _filteredSaccos = List.from(widget.saccos);
+            _searchResults.clear();
+            _selectedTab = 'all';
+            _applySorting();
+          });
+        },
+        color: AppColors.brown,
+        child: CustomScrollView(
+          slivers: [
+            // Search Actions Section - now scrollable
+            SliverToBoxAdapter(
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: AppColors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                  border: Border.all(color: AppColors.orange.withOpacity(0.3)),
+                  color: AppColors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
-                      Icons.route,
-                      color: AppColors.orange,
-                      size: 20,
+                    Text(
+                      'Search Saccos',
+                      style: AppTextStyles.heading2,
                     ),
-                    const SizedBox(width: AppDimensions.paddingSmall),
-                    Expanded(
-                      child: Text(
-                        'Route Search Mode Active',
-                        style: AppTextStyles.body2.copyWith(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.w600,
+                    const SizedBox(height: 16),
+                    // Only General Search and Route Search - removed Location Search
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSearchCard(
+                            'General Search',
+                            'Search by name, location, contact',
+                            Icons.search,
+                            AppColors.brown,
+                            _showGeneralSearchDialog,
+                          ),
                         ),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _showRouteSearch = false;
-                          _selectedFilter = 'all';
-                          _searchController.text = '';
-                          _filterAndSortSaccos();
-                        });
-                      },
-                      child: Text(
-                        'Exit',
-                        style: TextStyle(
-                          color: AppColors.orange,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSearchCard(
+                            'Route Search',
+                            'Find saccos by specific routes',
+                            Icons.route,
+                            AppColors.orange,
+                            _showRouteSearchDialog,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: AppDimensions.paddingSmall),
-            ],
-            TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: _showRouteSearch 
-                    ? 'Search routes (e.g., Nairobi-Nakuru, CBD-Westlands)...'
-                    : 'Search saccos...',
-                prefixIcon: Icon(
-                  _showRouteSearch ? Icons.route : Icons.search, 
-                  color: _showRouteSearch ? AppColors.orange : AppColors.grey,
-                ),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: Icon(Icons.clear, color: AppColors.grey),
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                  borderSide: BorderSide(
-                    color: _showRouteSearch ? AppColors.orange : AppColors.lightGrey,
+            ),
+
+            // Tab Navigation
+            if (_searchResults.isNotEmpty) ...[
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.white,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                  borderSide: BorderSide(
-                    color: _showRouteSearch ? AppColors.orange : AppColors.brown,
-                    width: 2,
+                  child: Row(
+                    children: [
+                      _buildTabButton('All Saccos', 'all'),
+                      _buildTabButton('Search Results', 'search'),
+                    ],
                   ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: AppDimensions.paddingMedium,
-                  vertical: AppDimensions.paddingSmall,
                 ),
               ),
-            ),
-            if (!_showRouteSearch) ...[
-              const SizedBox(height: AppDimensions.paddingSmall),
-              Row(
-                children: [
-                  Text(
-                    'Filter by:',
-                    style: AppTextStyles.body2.copyWith(
-                      color: AppColors.grey,
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.paddingSmall),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildFilterChip('All', 'all'),
-                          const SizedBox(width: AppDimensions.paddingSmall),
-                          _buildFilterChip('Sacco', 'sacco'),
-                          const SizedBox(width: AppDimensions.paddingSmall),
-                          _buildFilterChip('Route', 'route'),
-                          const SizedBox(width: AppDimensions.paddingSmall),
-                          _buildFilterChip('Location', 'location'),
-                        ],
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 16),
+              ),
+            ],
+
+            // Saccos List
+            currentList.isEmpty
+                ? SliverFillRemaining(
+                    child: _buildEmptyState(),
+                  )
+                : SliverPadding(
+                    padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) {
+                          final sacco = currentList[index];
+                          return _buildSaccoCard(sacco, index);
+                        },
+                        childCount: currentList.length,
                       ),
                     ),
                   ),
-                ],
-              ),
-            ] else ...[
-              const SizedBox(height: AppDimensions.paddingSmall),
-              _buildRouteSearchHelp(),
-            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, String value) {
-    final isSelected = _selectedFilter == value;
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          color: isSelected ? AppColors.white : AppColors.grey,
-          fontSize: 12,
+  Widget _buildSearchCard(String title, String subtitle, IconData icon, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: Border.all(color: color.withOpacity(0.2)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              icon,
+              color: color,
+              size: 32,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: AppTextStyles.caption,
+            ),
+          ],
         ),
       ),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          _selectedFilter = value;
-          if (value == 'route') {
-            _showRouteSearch = true;
-          }
-          _filterAndSortSaccos();
-        });
-      },
-      backgroundColor: AppColors.lightGrey,
-      selectedColor: value == 'route' ? AppColors.orange : AppColors.brown,
-      checkmarkColor: AppColors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 
-  Widget _buildRouteSearchHelp() {
-    return Container(
-      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
-      decoration: BoxDecoration(
-        color: AppColors.orange.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-        border: Border.all(color: AppColors.orange.withOpacity(0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                size: 16,
-                color: AppColors.orange,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Route Search Tips:',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.orange,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
+  Widget _buildTabButton(String title, String tabKey) {
+    final isSelected = _selectedTab == tabKey;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _selectedTab = tabKey),
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            vertical: 12,
+            horizontal: 20,
           ),
-          const SizedBox(height: 4),
-          Text(
-            '• Search for specific routes like "Nairobi-Nakuru" or "CBD-Westlands"\n• Use partial matches like "CBD" or "Westlands"\n• Search for route numbers like "Route 46" or "46"',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.grey,
-              height: 1.3,
+          margin: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.brown : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: isSelected ? AppColors.white : AppColors.brown,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSaccosList() {
-    if (_filteredSaccos.isEmpty) {
-      return _buildEmptyState();
-    }
-
-    return RefreshIndicator(
-      onRefresh: () async {
-        // Refresh functionality can be added here if needed
-        setState(() {
-          _filteredSaccos = List.from(widget.saccos);
-          _filterAndSortSaccos();
-        });
-      },
-      color: AppColors.brown,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        itemCount: _filteredSaccos.length,
-        itemBuilder: (context, index) {
-          final sacco = _filteredSaccos[index];
-          return _buildSaccoCard(sacco, index);
-        },
+        ),
       ),
     );
   }
@@ -512,43 +795,43 @@ class _AllSaccosPageState extends State<AllSaccosPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              _searchQuery.isEmpty ? Icons.business : Icons.search_off,
+              _selectedTab == 'search' ? Icons.search_off : Icons.business,
               size: 64,
               color: AppColors.lightGrey,
             ),
             const SizedBox(height: AppDimensions.paddingMedium),
             Text(
-              _searchQuery.isEmpty 
-                ? 'No Saccos Available'
-                : 'No Results Found',
+              _selectedTab == 'search' 
+                ? 'No Search Results'
+                : 'No Saccos Available',
               style: AppTextStyles.heading3.copyWith(
                 color: AppColors.grey,
               ),
             ),
             const SizedBox(height: AppDimensions.paddingSmall),
             Text(
-              _searchQuery.isEmpty
-                ? 'There are currently no saccos available. Check back later for new opportunities.'
-                : 'No saccos match your search criteria. Try adjusting your search terms or filters.',
+              _selectedTab == 'search'
+                ? 'No saccos match your search criteria. Try different search terms.'
+                : 'There are currently no saccos available. Check back later for new opportunities.',
               style: AppTextStyles.body1.copyWith(
                 color: AppColors.lightGrey,
               ),
               textAlign: TextAlign.center,
             ),
-            if (_searchQuery.isNotEmpty) ...[
+            if (_selectedTab == 'search') ...[
               const SizedBox(height: AppDimensions.paddingMedium),
               ElevatedButton(
                 onPressed: () {
-                  _searchController.clear();
                   setState(() {
-                    _selectedFilter = 'all';
+                    _searchResults.clear();
+                    _selectedTab = 'all';
                   });
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.brown,
                   foregroundColor: AppColors.white,
                 ),
-                child: const Text('Clear Search'),
+                child: const Text('Back to All Saccos'),
               ),
             ],
           ],
@@ -558,291 +841,333 @@ class _AllSaccosPageState extends State<AllSaccosPage> {
   }
 
   Widget _buildSaccoCard(dynamic sacco, int index) {
-    final name = sacco['name']?.toString() ?? 'Unknown Sacco';
-    final location = sacco['location']?.toString() ?? 'Unknown Location';
-    
-    // Handle routes - your data has routes as an array with nested route objects
-    String routesText = '';
-    final routes = sacco['routes'] as List<dynamic>? ?? [];
-    final totalRoutes = sacco['total_routes'] ?? 0;
-    
-    // Extract route information from the nested structure
-    if (routes.isNotEmpty) {
-      final routeStrings = <String>[];
-      for (final route in routes) {
-        // Check if this route object has a 'routes' array
-        if (route is Map<String, dynamic> && route.containsKey('routes')) {
-          final routeData = route['routes'] as List<dynamic>? ?? [];
-          for (final r in routeData) {
-            final startLocation = r['start_location']?.toString() ?? '';
-            final endLocation = r['end_location']?.toString() ?? '';
-            if (startLocation.isNotEmpty && endLocation.isNotEmpty) {
-              routeStrings.add('$startLocation - $endLocation');
+    try {
+      final name = _safeGetString(sacco['name'], defaultValue: 'Unknown Sacco');
+      final location = _safeGetString(sacco['location'], defaultValue: 'Unknown Location');
+      final email = _safeGetString(sacco['email']);
+      final contact = _safeGetString(sacco['contact_number']);
+      
+      // Handle routes with improved safety
+      String routesText = '';
+      final routes = sacco['routes'];
+      final totalRoutes = _calculateRouteCount(sacco);
+      
+      if (routes is List && routes.isNotEmpty) {
+        final routeStrings = <String>[];
+        for (final route in routes) {
+          try {
+            if (route is Map<String, dynamic> && route.containsKey('routes')) {
+              final routeData = route['routes'];
+              if (routeData is List) {
+                for (final r in routeData) {
+                  if (r is Map) {
+                    final startLocation = _safeGetString(r['start_location']);
+                    final endLocation = _safeGetString(r['end_location']);
+                    if (startLocation.isNotEmpty && endLocation.isNotEmpty) {
+                      routeStrings.add('$startLocation - $endLocation');
+                    }
+                  }
+                }
+              }
             }
+          } catch (e) {
+            print('Error processing route: $e');
+            continue;
           }
         }
+        routesText = routeStrings.join(', ');
       }
-      routesText = routeStrings.join(', ');
-    }
-    
-    // If routesText is still empty but we have total_routes > 0, 
-    // it means routes exist but in a different format
-    final hasRoutes = routesText.isNotEmpty || totalRoutes > 0;
-    
-    // Use average of both ratings
-    final ownerRating = (sacco['avg_owner_rating'] ?? 0.0) as double;
-    final passengerRating = (sacco['avg_passenger_rating'] ?? 0.0) as double;
-    final avgRating = ownerRating > 0 || passengerRating > 0 
-        ? (ownerRating + passengerRating) / 2 
-        : 0.0;
-    
-    final contactNumber = sacco['contact_number']?.toString() ?? '';
-    final email = sacco['email']?.toString() ?? '';
-    
-    // Create description from available contact info
-    String description = '';
-    if (contactNumber.isNotEmpty) description += 'Contact: $contactNumber';
-    if (email.isNotEmpty) {
-      if (description.isNotEmpty) description += ' | ';
-      description += 'Email: $email';
-    }
 
-    return Card(
-      elevation: 2,
-      margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-      ),
-      child: InkWell(
-        onTap: () => widget.onSaccoTap(sacco['id']),
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      // Calculate average rating with improved safety
+      final ownerRating = _safeGetDouble(sacco['avg_owner_rating']);
+      final passengerRating = _safeGetDouble(sacco['avg_passenger_rating']);
+      final avgRating = ownerRating > 0 || passengerRating > 0 
+          ? (ownerRating + passengerRating) / 2 
+          : 0.0;
+
+      return Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.lightGrey.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: InkWell(
+          onTap: () {
+            try {
+              widget.onSaccoTap(sacco);
+            } catch (e) {
+              print('Error on sacco tap: $e');
+              _showErrorSnackBar('Error opening sacco details');
+            }
+          },
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    backgroundColor: AppColors.blue.withOpacity(0.1),
-                    radius: 24,
-                    child: Text(
-                      name.substring(0, 1).toUpperCase(),
-                      style: AppTextStyles.heading3.copyWith(
-                        color: AppColors.blue,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.paddingMedium),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: AppTextStyles.heading3.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.location_on,
-                              size: 16,
-                              color: AppColors.grey,
+                            Text(
+                              name,
+                              style: AppTextStyles.heading3.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                location,
-                                style: AppTextStyles.body2.copyWith(
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.location_on,
+                                  size: 16,
                                   color: AppColors.grey,
                                 ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    location,
+                                    style: AppTextStyles.body2.copyWith(
+                                      color: AppColors.grey,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.arrow_forward_ios,
-                    color: AppColors.lightGrey,
-                    size: 16,
-                  ),
-                ],
-              ),
-              if (description.isNotEmpty) ...[
-                const SizedBox(height: AppDimensions.paddingSmall),
-                Text(
-                  description,
-                  style: AppTextStyles.body2,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-              // Routes section - only show if we have routes
-              if (hasRoutes) ...[
-                const SizedBox(height: AppDimensions.paddingSmall),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.paddingSmall,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: (_showRouteSearch && _searchQuery.isNotEmpty && 
-                          routesText.toLowerCase().contains(_searchQuery)) 
-                        ? AppColors.orange.withOpacity(0.2)
-                        : AppColors.purple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    border: (_showRouteSearch && _searchQuery.isNotEmpty && 
-                            routesText.toLowerCase().contains(_searchQuery))
-                        ? Border.all(color: AppColors.orange, width: 1)
-                        : null,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.route,
-                        size: 14,
-                        color: (_showRouteSearch && _searchQuery.isNotEmpty && 
-                              routesText.toLowerCase().contains(_searchQuery))
-                            ? AppColors.orange
-                            : AppColors.purple,
                       ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          routesText.isNotEmpty 
-                              ? 'Routes: $routesText'
-                              : 'Routes: $totalRoutes route${totalRoutes == 1 ? '' : 's'} available',
-                          style: AppTextStyles.caption.copyWith(
-                            color: (_showRouteSearch && _searchQuery.isNotEmpty && 
-                                  routesText.toLowerCase().contains(_searchQuery))
-                                ? AppColors.orange
-                                : AppColors.purple,
-                            fontWeight: (_showRouteSearch && _searchQuery.isNotEmpty && 
-                                        routesText.toLowerCase().contains(_searchQuery))
-                                ? FontWeight.bold
-                                : FontWeight.w500,
+                      if (avgRating > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                          decoration: BoxDecoration(
+                            color: AppColors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.star,
+                                size: 16,
+                                color: AppColors.orange,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                avgRating.toStringAsFixed(1),
+                                style: AppTextStyles.body2.copyWith(
+                                  color: AppColors.orange,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
-                ),
-              ],
-              const SizedBox(height: AppDimensions.paddingSmall),
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppDimensions.paddingSmall,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: avgRating > 0 
-                          ? AppColors.orange.withOpacity(0.1)
-                          : AppColors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  const SizedBox(height: 12),
+                  
+                  // Contact Information
+                  if (contact.isNotEmpty || email.isNotEmpty) ...[
+                    Row(
                       children: [
-                        Icon(
-                          Icons.star,
-                          color: avgRating > 0 ? AppColors.orange : AppColors.grey,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          avgRating > 0 ? avgRating.toStringAsFixed(1) : 'No rating',
-                          style: AppTextStyles.caption.copyWith(
-                            color: avgRating > 0 ? AppColors.orange : AppColors.grey,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.paddingSmall),
-                  // Only show route count if there are actually routes
-                  if (totalRoutes > 0) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppDimensions.paddingSmall,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.route,
-                            color: AppColors.green,
-                            size: 14,
+                        if (contact.isNotEmpty) ...[
+                          Icon(
+                            Icons.phone,
+                            size: 16,
+                            color: AppColors.brown,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            '$totalRoutes route${totalRoutes == 1 ? '' : 's'}',
+                            contact,
                             style: AppTextStyles.caption.copyWith(
-                              color: AppColors.green,
-                              fontWeight: FontWeight.w600,
+                              color: AppColors.brown,
                             ),
+                          ),
+                        ],
+                        if (contact.isNotEmpty && email.isNotEmpty) ...[
+                          const SizedBox(width: 16),
+                          Container(
+                            width: 1,
+                            height: 12,
+                            color: AppColors.lightGrey,
+                          ),
+                          const SizedBox(width: 16),
+                        ],
+                        if (email.isNotEmpty) ...[
+                          Icon(
+                            Icons.email,
+                            size: 16,
+                            color: AppColors.brown,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              email,
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.brown,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Routes Information
+                  if (routesText.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightGrey.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.route,
+                                size: 16,
+                                color: AppColors.orange,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Routes ($totalRoutes)',
+                                style: AppTextStyles.body2.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            routesText,
+                            style: AppTextStyles.caption,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
                     ),
                   ] else ...[
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppDimensions.paddingSmall,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppColors.grey.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+                        color: AppColors.lightGrey.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.info_outline,
+                            size: 16,
                             color: AppColors.grey,
-                            size: 14,
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 8),
                           Text(
-                            'No routes',
+                            'No route information available',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.grey,
-                              fontWeight: FontWeight.w600,
+                              fontStyle: FontStyle.italic,
                             ),
                           ),
                         ],
                       ),
                     ),
                   ],
-                  const Spacer(),
-                  Text(
-                    '#${index + 1}',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.lightGrey,
-                    ),
+
+                  const SizedBox(height: 12),
+                  
+                  // Action Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          if (totalRoutes > 0) ...[
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppColors.brown.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$totalRoutes ${totalRoutes == 1 ? 'Route' : 'Routes'}',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.brown,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      Icon(
+                        Icons.arrow_forward_ios,
+                        size: 16,
+                        color: AppColors.brown,
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+          ),
+        );
+      } catch (e) {
+        print('Error building sacco card: $e');
+        // Return a simple error card if there's an issue
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.error.withOpacity(0.3)),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                Icons.error_outline,
+                color: AppColors.error,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Error loading sacco data',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.error,
+                  ),
+                ),
+              ),
             ],
           ),
-        ),
-      ),
-    );
-  }
+        );
+      }
+    }
 }
