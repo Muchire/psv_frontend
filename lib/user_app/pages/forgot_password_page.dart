@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../utils/constants.dart';
 import '/services/api_service.dart';
 import 'login_page.dart';
-import 'reset_password_page.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -23,7 +22,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  Future<void> _sendResetEmail() async {
+  Future<void> _requestPasswordReset() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -31,13 +30,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     });
 
     try {
-      print('DEBUG: Sending password reset email to: ${_emailController.text.trim()}');
-      
       final response = await ApiService.requestPasswordReset(
         email: _emailController.text.trim(),
       );
-
-      print('DEBUG: Password reset response: $response');
 
       if (mounted) {
         setState(() {
@@ -46,13 +41,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Password reset email sent!'),
+            content: Text(response['message'] ?? 'Password reset email sent successfully!'),
             backgroundColor: AppColors.success,
           ),
         );
       }
     } catch (e) {
-      print('DEBUG: Password reset error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -70,24 +64,23 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     }
   }
 
-  Future<void> _resendEmail() async {
-    setState(() {
-      _emailSent = false;
-    });
-    await _sendResetEmail();
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Reset Password'),
+        title: const Text('Forgot Password'),
         backgroundColor: AppColors.carafe,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.pop(context);
+            Navigator.pushAndRemoveUntil(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LoginPage(),
+              ),
+              (route) => false,
+            );
           },
         ),
       ),
@@ -118,7 +111,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      _emailSent ? Icons.mark_email_read : Icons.lock_reset,
+                      _emailSent ? Icons.mark_email_read : Icons.email,
                       size: 64,
                       color: AppColors.carafe,
                     ),
@@ -138,7 +131,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                   // Description
                   Text(
                     _emailSent 
-                        ? 'We\'ve sent a password reset email to ${_emailController.text.trim()}. The email contains both a reset token and UID that you\'ll need to reset your password.'
+                        ? 'We\'ve sent a password reset email to ${_emailController.text}. Please check your inbox and follow the instructions.'
                         : 'Enter your email address and we\'ll send you instructions to reset your password.',
                     style: AppTextStyles.body1.copyWith(
                       color: AppColors.brown,
@@ -164,13 +157,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                 labelText: 'Email Address',
                                 prefixIcon: Icon(Icons.email, color: AppColors.brown),
                                 border: OutlineInputBorder(),
+                                helperText: 'Enter your registered email address',
                               ),
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
                                   return 'Please enter your email address';
                                 }
-                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$')
-                                    .hasMatch(value.trim())) {
+                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
                                   return 'Please enter a valid email address';
                                 }
                                 return null;
@@ -179,12 +172,12 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                             
                             const SizedBox(height: AppDimensions.paddingLarge),
                             
-                            // Send Reset Link button
+                            // Send Reset Email button
                             SizedBox(
                               width: double.infinity,
                               height: 50,
                               child: ElevatedButton(
-                                onPressed: _isLoading ? null : _sendResetEmail,
+                                onPressed: _isLoading ? null : _requestPasswordReset,
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.carafe,
                                   shape: RoundedRectangleBorder(
@@ -200,7 +193,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                                           strokeWidth: 2,
                                         ),
                                       )
-                                    : const Text('Send Reset Instructions', style: AppTextStyles.button),
+                                    : const Text('Send Reset Email', style: AppTextStyles.button),
                               ),
                             ),
                           ],
@@ -208,125 +201,93 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                       ),
                     ),
                   ] else ...[
-                    // Email sent state actions
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 300),
-                      child: Column(
-                        children: [
-                          // Go to reset password page button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const ResetPasswordPage(),
-                                  ),
-                                );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.carafe,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text('Enter Reset Code', style: AppTextStyles.button),
+                    // Email sent success state
+                    Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(AppDimensions.paddingLarge),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.success.withOpacity(0.3),
                             ),
                           ),
-                          
-                          const SizedBox(height: AppDimensions.paddingMedium),
-                          
-                          // Resend email button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: OutlinedButton(
-                              onPressed: _isLoading ? null : _resendEmail,
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.carafe),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                          child: Column(
+                            children: [
+                              const Icon(
+                                Icons.check_circle,
+                                size: 48,
+                                color: AppColors.success,
+                              ),
+                              const SizedBox(height: AppDimensions.paddingMedium),
+                              Text(
+                                'Email sent successfully!',
+                                style: AppTextStyles.body1.copyWith(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: AppColors.carafe,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : Text(
-                                      'Resend Email',
-                                      style: AppTextStyles.button.copyWith(
-                                        color: AppColors.carafe,
-                                      ),
-                                    ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: AppDimensions.paddingLarge),
+                        
+                        // Resend button
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _emailSent = false;
+                            });
+                          },
+                          child: Text(
+                            'Didn\'t receive email? Send again',
+                            style: AppTextStyles.body2.copyWith(
+                              color: AppColors.brown,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
                             ),
                           ),
-                          
-                          const SizedBox(height: AppDimensions.paddingMedium),
-                          
-                          // Go to login button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: TextButton(
-                              onPressed: () {
-                                Navigator.pushAndRemoveUntil(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => const LoginPage(),
-                                  ),
-                                  (route) => false,
-                                );
-                              },
-                              child: Text(
-                                'Back to Login',
-                                style: AppTextStyles.button.copyWith(
-                                  color: AppColors.brown,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ],
                   
                   const SizedBox(height: AppDimensions.paddingLarge),
                   
                   // Help text
-                  Text(
-                    _emailSent 
-                        ? 'The email contains both a reset token and UID. You\'ll need both to reset your password. Didn\'t receive it? Check your spam folder.'
-                        : 'Didn\'t receive the email? Check your spam folder or contact support.',
-                    style: AppTextStyles.body2.copyWith(
-                      color: AppColors.grey,
+                  if (!_emailSent)
+                    Text(
+                      'Make sure to check your spam folder if you don\'t see the email in your inbox.',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.grey,
+                      ),
+                      textAlign: TextAlign.center,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
                   
                   const SizedBox(height: AppDimensions.paddingLarge),
                   
                   // Back to login link
-                  if (!_emailSent)
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: Text(
-                        'Back to Login',
-                        style: AppTextStyles.body2.copyWith(
-                          color: AppColors.brown,
-                          fontWeight: FontWeight.w600,
-                          decoration: TextDecoration.underline,
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const LoginPage(),
                         ),
+                        (route) => false,
+                      );
+                    },
+                    child: Text(
+                      'Back to Login',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.brown,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
                       ),
                     ),
+                  ),
                 ],
               ),
             ),

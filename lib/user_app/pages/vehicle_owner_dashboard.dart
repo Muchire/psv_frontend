@@ -3,6 +3,7 @@ import '/services/vehicle_api_service.dart';
 import '../utils/constants.dart';
 import 'vehicle_sacco_detail_page.dart';
 import 'vehicle_detail_page.dart';
+import 'vehicle_list_page.dart';
 import 'profile_page.dart';
 import 'all_saccos_page.dart';
 import '../widgets/loading_widget.dart';
@@ -24,7 +25,8 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
   bool _isLoading = true;
   bool _isRefreshing = false;
   String? _error;
-  int _pendingRequestsCount = 0;
+  int _RequestsMadeCount = 0;
+  bool _showNotifications = true; // Add flag to control notification visibility
 
   @override
   void initState() {
@@ -63,12 +65,12 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
       // Load join requests
       try {
         _joinRequests = await VehicleOwnerService.getJoinRequests();
-        _pendingRequestsCount = _joinRequests.length;
+        _RequestsMadeCount = _joinRequests.length;
         print('DEBUG: Join requests loaded: ${_joinRequests.length} requests');
       } catch (e) {
         print('DEBUG: Error loading join requests: $e');
         _joinRequests = [];
-        _pendingRequestsCount = 0;
+        _RequestsMadeCount = 0;
       }
 
       // Load available saccos
@@ -120,6 +122,12 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
       );
     }
   }
+  void _navigateToVehiclesListPage(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => VehicleListPage()),
+    );
+  }
 
   void _showSuccessSnackBar(String message) {
     if (mounted) {
@@ -159,18 +167,10 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AllSaccosPage(
-          saccos: _availableSaccos,
-          onSaccoTap: _navigateToSaccoDetail,
-        ),
+        builder: (context) => const VehicleOwnerHomePage(),
       ),
     );
     await _handleNavigationResult(result);
-  }
-
-  void _navigateToNotifications() {
-    // TODO: Implement navigation to notifications/join requests page
-    _showInfoSnackBar('Notifications page - Coming soon!');
   }
 
   @override
@@ -185,47 +185,6 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
         backgroundColor: AppColors.brown,
         foregroundColor: AppColors.white,
         actions: [
-          // Notification icon with improved styling
-          if (_pendingRequestsCount > 0)
-            Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications),
-                  tooltip: 'You have notifications',
-                  onPressed: _navigateToNotifications,
-                ),
-                Positioned(
-                  right: 11,
-                  top: 11,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 16,
-                      minHeight: 16,
-                    ),
-                    child: Text(
-                      '$_pendingRequestsCount',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.notifications_none),
-              tooltip: 'No new notifications',
-              onPressed: _navigateToNotifications,
-            ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -272,11 +231,8 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
           children: [
             _buildWelcomeCard(),
             const SizedBox(height: AppDimensions.paddingMedium),
-            if (_pendingRequestsCount > 0) ...[
-              _buildPendingRequestsAlert(),
-              const SizedBox(height: AppDimensions.paddingMedium),
-            ],
-            _buildQuickStatsSection(),
+            if (_showNotifications)
+              _buildQuickStatsSection(),
             const SizedBox(height: AppDimensions.paddingMedium),
             _buildMyVehiclesSection(),
             const SizedBox(height: AppDimensions.paddingMedium),
@@ -284,47 +240,6 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
             const SizedBox(height: AppDimensions.paddingMedium),
             _buildRecentActivitySection(),
           ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPendingRequestsAlert() {
-    return Card(
-      elevation: 3,
-      color: AppColors.orange.withOpacity(0.1),
-      child: InkWell(
-        onTap: _navigateToNotifications,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-        child: Padding(
-          padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-          child: Row(
-            children: [
-              Icon(Icons.pending_actions, color: AppColors.orange, size: 32),
-              const SizedBox(width: AppDimensions.paddingMedium),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Pending Join Requests',
-                      style: AppTextStyles.heading3.copyWith(
-                        color: AppColors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '$_pendingRequestsCount request${_pendingRequestsCount == 1 ? '' : 's'} awaiting your review',
-                      style: AppTextStyles.body2.copyWith(
-                        color: AppColors.brown,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.arrow_forward_ios, color: AppColors.orange),
-            ],
-          ),
         ),
       ),
     );
@@ -465,10 +380,10 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
             const SizedBox(width: AppDimensions.paddingSmall),
             Expanded(
               child: _buildStatCard(
-                'Pending Requests',
-                '$_pendingRequestsCount',
+                ' Requests Made',
+                '$_RequestsMadeCount',
                 Icons.pending_actions,
-                AppColors.orange,
+                AppColors.purple, // Changed to purple to match notification theme
               ),
             ),
           ],
@@ -528,7 +443,7 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
             if (_vehicles.length > 3)
               TextButton(
                 onPressed: () {
-                  // Navigate to all vehicles page
+                  _navigateToVehiclesListPage(context);
                 },
                 child: Text(
                   'View All',
@@ -578,7 +493,7 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
           vertical: AppDimensions.paddingSmall,
         ),
         leading: CircleAvatar(
-          backgroundColor: AppColors.brown.withOpacity(0.1),
+          backgroundColor: AppColors.brown,
           radius: 20,
           child: Icon(Icons.directions_bus, color: AppColors.brown, size: 20),
         ),
@@ -899,8 +814,7 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
             // Dashboard - already here
             break;
           case 1:
-            // Navigate to vehicles page
-            _navigateToAllVehicles(context);
+            _navigateToVehiclesListPage(context);
             break;
           case 2:
             // Navigate to saccos page
@@ -925,76 +839,18 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
       items: [
         const BottomNavigationBarItem(
           icon: Icon(Icons.dashboard),
-          label: 'Dashboard',
+          label:'Dashboard',
         ),
-        BottomNavigationBarItem(
-          icon: Stack(
-            children: [
-              const Icon(Icons.directions_car),
-              if (_vehicles.length > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: AppColors.green,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: Text(
-                      '${_vehicles.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.directions_car),
           label: 'Vehicles',
         ),
-        BottomNavigationBarItem(
-          icon: Stack(
-            children: [
-              const Icon(Icons.business),
-              if (_availableSaccos.length > 0)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(1),
-                    decoration: BoxDecoration(
-                      color: AppColors.blue,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: Text(
-                      '${_availableSaccos.length}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.business),
           label: 'Saccos',
         ),
         const BottomNavigationBarItem(
-          icon: Icon(Icons.monetization_on),
+          icon: Icon(Icons.attach_money),
           label: 'Earnings',
         ),
         const BottomNavigationBarItem(
@@ -1005,7 +861,11 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
     );
   }
 
-  // Helper methods for navigation
+  void _navigateToEarnings() {
+    // TODO: Implement navigation to earnings page
+    _showInfoSnackBar('Earnings page - Coming soon!');
+  }
+
   void _showInfoSnackBar(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1015,15 +875,5 @@ class _VehicleOwnerDashboardState extends State<VehicleOwnerDashboard> {
         ),
       );
     }
-  }
-
-  void _navigateToAllVehicles(BuildContext context) {
-    // TODO: Implement navigation to all vehicles page
-    _showInfoSnackBar('All Vehicles page - Coming soon!');
-  }
-
-  void _navigateToEarnings() {
-    // TODO: Implement navigation to earnings page
-    _showInfoSnackBar('Earnings page - Coming soon!');
   }
 }

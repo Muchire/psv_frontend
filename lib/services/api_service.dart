@@ -130,72 +130,91 @@ class ApiService {
     }
   }
   
-  // FIXED: Password Reset APIs with correct URLs
-  static Future<Map<String, dynamic>> requestPasswordReset({
-    required String email,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/user/auth/request-password-reset/'), // FIXED URL
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'email': email,
-      }),
-    );
-    
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      final error = jsonDecode(response.body);
-      throw Exception(error['error'] ?? 'Failed to send password reset email');
-    }
-  }
+    static Future<Map<String, dynamic>> requestPasswordReset({
+      required String email,
+    }) async {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/user/auth/request-password-reset/'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'email': email,
+          }),
+        );
 
-  // FIXED: Validate reset token
-  static Future<Map<String, dynamic>> validateResetToken({
-    required String token,
-    required String uid,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/user/auth/validate-reset-token/'), // FIXED URL
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'token': token,
-        'uid': uid, // ADDED missing uid parameter
-      }),
-    );
-    
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      final error = jsonDecode(response.body);
-      throw Exception(error['error'] ?? error['detail'] ?? 'Invalid or expired token');
-    }
-  }
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
 
-  // FIXED: Password Reset - Confirm reset with token
-  static Future<Map<String, dynamic>> confirmPasswordReset({
-    required String token,
-    required String uid,  // ADDED missing uid parameter
-    required String newPassword,
-  }) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/user/auth/reset-password/'), // FIXED URL
-      headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'token': token,
-        'uid': uid,  // ADDED missing uid parameter
-        'new_password': newPassword,
-      }),
-    );
-    
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body);
-    } else {
-      final error = jsonDecode(response.body);
-      throw Exception(error['error'] ?? error['detail'] ?? 'Failed to reset password');
+        if (response.statusCode == 200) {
+          return responseData;
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to request password reset');
+        }
+      } catch (e) {
+        throw Exception('Network error: ${e.toString()}');
+      }
     }
-  }
-  
+
+    /// Validate password reset token
+    static Future<Map<String, dynamic>> validateResetToken({
+      required String token,
+      required String uid,
+    }) async {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/user/auth/validate-reset-token/'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'token': token,
+            'uid': uid,
+          }),
+        );
+
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return responseData;
+        } else {
+          throw Exception(responseData['error'] ?? 'Invalid token');
+        }
+      } catch (e) {
+        throw Exception('Network error: ${e.toString()}');
+      }
+    }
+
+    /// Confirm password reset with new password
+    static Future<Map<String, dynamic>> confirmPasswordReset({
+      required String token,
+      required String uid,
+      required String newPassword,
+    }) async {
+      try {
+        final response = await http.post(
+          Uri.parse('$baseUrl/user/auth/reset-password/'),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: jsonEncode({
+            'token': token,
+            'uid': uid,
+            'new_password': newPassword,
+          }),
+        );
+
+        final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+        if (response.statusCode == 200) {
+          return responseData;
+        } else {
+          throw Exception(responseData['error'] ?? 'Failed to reset password');
+        }
+      } catch (e) {
+        throw Exception('Network error: ${e.toString()}');
+      }
+    }
   // Sacco APIs
   static Future<List<dynamic>> getSaccos() async {
     final response = await http.get(
@@ -213,6 +232,18 @@ class ApiService {
   static Future<Map<String, dynamic>> getSaccoDetail(int id) async {
     final response = await http.get(
       Uri.parse('$baseUrl/sacco/$id/'),
+      headers: await getHeaders(),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load sacco details');
+    }
+  }
+    static Future<Map<String, dynamic>> getSaccoDetailPOV(int id) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/sacco/$id/POV/'),
       headers: await getHeaders(),
     );
     

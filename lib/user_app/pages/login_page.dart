@@ -41,6 +41,15 @@ class _LoginPageState extends State<LoginPage> {
         username: _usernameController.text.trim(),
         password: _passwordController.text,
       );
+      
+      // Ensure passenger mode is set immediately after successful login
+      try {
+        await ApiService.switchUserMode('passenger');
+        print('DEBUG: User mode set to passenger successfully');
+      } catch (modeError) {
+        print('DEBUG: Failed to set passenger mode: $modeError');
+        // Continue with login even if mode switch fails
+      }
 
       if (mounted) {
         Navigator.pushReplacement(
@@ -52,7 +61,7 @@ class _LoginPageState extends State<LoginPage> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(response['message'] ?? 'Login successful!'),
+            content: Text(response['message'] ?? 'Login successful! Welcome, passenger!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -74,6 +83,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     }
   }
+
   Future<void> _signInWithGoogle() async {
     setState(() {
       _isGoogleLoading = true;
@@ -100,6 +110,15 @@ class _LoginPageState extends State<LoginPage> {
           // Don't return here, still navigate to home
         }
         
+        // Ensure passenger mode is set immediately after successful Google sign-in
+        try {
+          await ApiService.switchUserMode('passenger');
+          print('DEBUG: User mode set to passenger successfully after Google sign-in');
+        } catch (modeError) {
+          print('DEBUG: Failed to set passenger mode after Google sign-in: $modeError');
+          // Continue with login even if mode switch fails
+        }
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
@@ -109,7 +128,7 @@ class _LoginPageState extends State<LoginPage> {
         
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result['message'] ?? 'Google sign-in successful!'),
+            content: Text(result['message'] ?? 'Google sign-in successful! Welcome, passenger!'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -132,6 +151,16 @@ class _LoginPageState extends State<LoginPage> {
           _isGoogleLoading = false;
         });
       }
+    }
+  }
+
+  // Helper method to ensure passenger mode is set (can be called from other parts of your app)
+  static Future<void> ensurePassengerMode() async {
+    try {
+      await ApiService.switchUserMode('passenger');
+      print('DEBUG: Passenger mode ensured');
+    } catch (e) {
+      print('DEBUG: Failed to ensure passenger mode: $e');
     }
   }
 
@@ -385,18 +414,28 @@ class _LoginPageState extends State<LoginPage> {
                   
                   const SizedBox(height: AppDimensions.paddingLarge),
                   
-                  // Guest mode
+                  // Guest mode - also set as passenger
                   TextButton(
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const HomePage(),
-                        ),
-                      );
+                    onPressed: () async {
+                      // Even guest users should be in passenger mode
+                      try {
+                        await ApiService.switchUserMode('passenger');
+                        print('DEBUG: Guest user set to passenger mode');
+                      } catch (e) {
+                        print('DEBUG: Failed to set guest as passenger: $e');
+                      }
+                      
+                      if (mounted) {
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const HomePage(),
+                          ),
+                        );
+                      }
                     },
                     child: Text(
-                      'Continue as Guest',
+                      'Continue as Guest (Passenger)',
                       style: AppTextStyles.body2.copyWith(
                         decoration: TextDecoration.underline,
                         color: AppColors.brown,

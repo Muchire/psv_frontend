@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '/services/sacco_admin_service.dart';
 import '/services/vehicle_api_service.dart';
 import '../utils/constants.dart';
 import 'add_owner_review_page.dart';
@@ -16,24 +17,32 @@ class VehicleSaccoDetailPage extends StatefulWidget {
 class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _saccoData;
-  Map<String, dynamic>? _fullSaccoResponse; // Store the full API response
-  Map<String, dynamic>? _dashboardData;
+  Map<String, dynamic>? _fullSaccoResponse;
+  List<dynamic> _routes = [];
+  Map<String, dynamic>? _ratings;
   List<dynamic> _reviews = [];
   List<dynamic> _vehicles = [];
   bool _isLoading = true;
   bool _isLoadingReviews = false;
-  bool _isLoadingVehicles = false;
-  bool _isLoadingDashboard = false;
   late TabController _tabController;
+  final ScrollController _scrollController = ScrollController();
+  bool _showStickyHeader = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this); // Changed from 4 to 3 tabs
     _loadSaccoDetails();
-    // _loadSaccoDashboard();
     _loadOwnerReviews();
-    _loadSaccoVehicles();
+    
+    // Add scroll listener for sticky header
+    _scrollController.addListener(() {
+      if (_scrollController.offset > 200 && !_showStickyHeader) {
+        setState(() => _showStickyHeader = true);
+      } else if (_scrollController.offset <= 200 && _showStickyHeader) {
+        setState(() => _showStickyHeader = false);
+      }
+    });
   }
 
   Future<void> _loadSaccoDetails() async {
@@ -41,8 +50,10 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
       final data = await VehicleOwnerService.getSaccoDetails(widget.saccoId);
       setState(() {
         _fullSaccoResponse = data;
-        _saccoData =
-            data['sacco']; // Extract the sacco data from the nested structure
+        _saccoData = data['sacco'];
+        _routes = data['routes'] ?? [];
+        _ratings = data['ratings'] ?? {};
+        _reviews = data['recent_reviews'] ?? [];
         _isLoading = false;
       });
     } catch (e) {
@@ -51,7 +62,6 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     }
   }
 
-// In your VehicleSaccoDetailPage or wherever you navigate to join page
   Future<void> _showJoinSaccoForm() async {
     Navigator.push(
       context,
@@ -68,9 +78,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     setState(() => _isLoadingReviews = true);
     try {
       final reviews = await VehicleOwnerService.getOwnerReviews();
-      // Filter reviews for this specific sacco
-      final saccoReviews =
-          reviews['results']
+      final saccoReviews = reviews['results']
               ?.where(
                 (review) =>
                     review['sacco_id'] == widget.saccoId ||
@@ -79,29 +87,12 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
               .toList() ??
           [];
       setState(() {
-        _reviews = saccoReviews;
+        _reviews.addAll(saccoReviews);
         _isLoadingReviews = false;
       });
     } catch (e) {
       setState(() => _isLoadingReviews = false);
-      _showErrorSnackBar('Failed to load reviews: $e');
-    }
-  }
-
-  Future<void> _loadSaccoVehicles() async {
-    setState(() => _isLoadingVehicles = true);
-    try {
-      // This would typically be an endpoint to get vehicles by sacco
-      // For now, we'll use the general vehicles endpoint and filter
-      final vehicles = await VehicleOwnerService.getVehicles();
-      // In a real implementation, you'd have an endpoint like getSaccoVehicles(saccoId)
-      setState(() {
-        _vehicles = vehicles;
-        _isLoadingVehicles = false;
-      });
-    } catch (e) {
-      setState(() => _isLoadingVehicles = false);
-      _showErrorSnackBar('Failed to load vehicles: $e');
+      _showErrorSnackBar('Failed to load additional reviews: $e');
     }
   }
 
@@ -111,32 +102,6 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
         SnackBar(content: Text(message), backgroundColor: AppColors.error),
       );
     }
-  }
-
-  double _calculateAverageRating(String type) {
-    // Use the ratings from the API response if available
-    if (_fullSaccoResponse != null && _fullSaccoResponse!['ratings'] != null) {
-      final ratings = _fullSaccoResponse!['ratings'];
-      final rating = ratings[type] ?? ratings['overall'] ?? 0.0;
-      return double.tryParse(rating.toString()) ?? 0.0;
-    }
-
-    // Fallback to calculating from reviews
-    if (_reviews.isEmpty) return 0.0;
-
-    double sum = 0;
-    int count = 0;
-    for (var review in _reviews) {
-      final rating = review[type];
-      if (rating != null) {
-        sum +=
-            rating.toString().isEmpty
-                ? 0
-                : double.tryParse(rating.toString()) ?? 0;
-        count++;
-      }
-    }
-    return count > 0 ? sum / count : 0.0;
   }
 
   @override
@@ -161,188 +126,195 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_saccoData!['name'] ?? 'Sacco Details'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.rate_review),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AddOwnerReviewPage(
-                    saccoId: widget.saccoId,
-                  ),
-                ),
-              );
-              if (result == true) {
-                _loadOwnerReviews(); // Refresh reviews
-              }
-            },
-          ),
-        ],
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          // Sacco Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(AppDimensions.paddingLarge),
-            decoration: const BoxDecoration(
-              color: AppColors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: AppColors.tan,
-                  child: Text(
-                    _saccoData!['name']?.substring(0, 1).toUpperCase() ?? 'S',
-                    style: AppTextStyles.heading1.copyWith(color: AppColors.carafe),
+          NestedScrollView(
+            controller: _scrollController,
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  expandedHeight: 280,
+                  floating: false,
+                  pinned: true,
+                  actions: [
+                    IconButton(
+                      icon: const Icon(Icons.rate_review),
+                      onPressed: () async {
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AddOwnerReviewPage(
+                              saccoId: widget.saccoId,
+                            ),
+                          ),
+                        );
+                        if (result == true) {
+                          _loadOwnerReviews();
+                        }
+                      },
+                    ),
+                  ],
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: Container(
+                      padding: const EdgeInsets.all(AppDimensions.paddingLarge),
+                      decoration: const BoxDecoration(
+                        color: AppColors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: SafeArea(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            CircleAvatar(
+                              radius: 40,
+                              backgroundColor: AppColors.tan,
+                              child: Text(
+                                _saccoData!['name']?.substring(0, 1).toUpperCase() ?? 'S',
+                                style: AppTextStyles.heading1.copyWith(color: AppColors.carafe),
+                              ),
+                            ),
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                            Text(
+                              _saccoData!['name'] ?? 'Unknown Sacco',
+                              style: AppTextStyles.heading1,
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                            _buildRatingsOverview(),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(height: AppDimensions.paddingMedium),
-                Text(
-                  _saccoData!['name'] ?? 'Unknown Sacco',
-                  style: AppTextStyles.heading1,
-                  textAlign: TextAlign.center,
-                ),
-                if (_saccoData!['description'] != null) ...[
-                  const SizedBox(height: AppDimensions.paddingSmall),
-                  Text(
-                    _saccoData!['description'],
-                    style: AppTextStyles.body2,
-                    textAlign: TextAlign.center,
+                SliverPersistentHeader(
+                  delegate: _SliverTabBarDelegate(
+                    TabBar(
+                      controller: _tabController,
+                      tabs: const [
+                        Tab(text: 'Info'),
+                        Tab(text: 'Routes'),
+                        Tab(text: 'Reviews'),
+                      ],
+                      labelColor: AppColors.brown,
+                      unselectedLabelColor: AppColors.grey,
+                      indicatorColor: AppColors.brown,
+                    ),
                   ),
-                ],
-                const SizedBox(height: AppDimensions.paddingMedium),
-                _buildRatingsOverview(),
-              ],
-            ),
-          ),
-
-          // Tab Bar
-          TabBar(
-            controller: _tabController,
-            isScrollable: true,
-            tabs: const [
-              Tab(text: 'Info'),
-              Tab(text: 'Financials'),
-              Tab(text: 'Vehicles'),
-              Tab(text: 'Reviews'),
-            ],
-            labelColor: AppColors.brown,
-            unselectedLabelColor: AppColors.grey,
-            indicatorColor: AppColors.brown,
-          ),
-
-          // Tab Content
-          Expanded(
-            child: TabBarView(
+                  pinned: true,
+                ),
+              ];
+            },
+            body: TabBarView(
               controller: _tabController,
               children: [
                 _buildInfoTab(),
-                _buildFinancialsTab(),
-                _buildVehiclesTab(),
+                _buildRoutesTab(),
                 _buildReviewsTab(),
               ],
             ),
           ),
-        ],
-      ),
-
-        floatingActionButton: FloatingActionButton.extended(
-          icon: const Icon(Icons.group_add),
-          label: const Text('Join Sacco'),
-          backgroundColor: Colors.blue,
-          foregroundColor: Colors.white,
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => JoinSaccoPage(
-                  saccoId: _saccoData!['id'],
-                  saccoName: _saccoData!['name'],
-                  // vehicleId: currentVehicleId, // Make sure this is defined in your state
+          
+          // Sticky header when scrolling
+          if (_showStickyHeader)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + kToolbarHeight,
+              left: 0,
+              right: 0,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppDimensions.paddingMedium,
+                  vertical: AppDimensions.paddingSmall,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 16,
+                      backgroundColor: AppColors.tan,
+                      child: Text(
+                        _saccoData!['name']?.substring(0, 1).toUpperCase() ?? 'S',
+                        style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
+                      ),
+                    ),
+                    const SizedBox(width: AppDimensions.paddingSmall),
+                    Expanded(
+                      child: Text(
+                        _saccoData!['name'] ?? 'Unknown Sacco',
+                        style: AppTextStyles.heading3,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            );
-          },
-        ),
+            ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        icon: const Icon(Icons.group_add),
+        label: const Text('Join Sacco'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => JoinSaccoPage(
+                saccoId: _saccoData!['id'],
+                saccoName: _saccoData!['name'],
+              ),
+            ),
+          );
+        },
+      ),
     );
-
-
   }
 
   Widget _buildRatingsOverview() {
-    // Use ratings from API response if available
-    if (_fullSaccoResponse != null && _fullSaccoResponse!['ratings'] != null) {
-      final ratings = _fullSaccoResponse!['ratings'];
-      final overallRating =
-          double.tryParse(ratings['overall']?.toString() ?? '0') ?? 0.0;
-      final totalReviews = ratings['total_reviews'] ?? 0;
-
-      if (totalReviews == 0) {
-        return const Text('No reviews yet', style: AppTextStyles.caption);
-      }
-
-      return Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildRatingItem('Overall', overallRating),
-              _buildRatingItem(
-                'Payment',
-                double.tryParse(
-                      ratings['payment_punctuality']?.toString() ?? '0',
-                    ) ??
-                    0.0,
-              ),
-              _buildRatingItem(
-                'Support',
-                double.tryParse(ratings['support']?.toString() ?? '0') ?? 0.0,
-              ),
-              _buildRatingItem(
-                'Fairness',
-                double.tryParse(ratings['rate_fairness']?.toString() ?? '0') ??
-                    0.0,
-              ),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.paddingSmall),
-          Text('Based on $totalReviews reviews', style: AppTextStyles.caption),
-        ],
-      );
-    }
-
-    // Fallback for when no ratings data is available
-    if (_reviews.isEmpty) {
+    if (_ratings == null || _ratings!['total_reviews'] == 0) {
       return const Text('No reviews yet', style: AppTextStyles.caption);
     }
 
-    final overallRating = _calculateAverageRating('overall_rating');
+    final overallRating = double.tryParse(_ratings!['overall']?.toString() ?? '0') ?? 0.0;
+    final totalReviews = _ratings!['total_reviews'] ?? 0;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+    return Column(
       children: [
-        _buildRatingItem('Overall', overallRating),
-        _buildRatingItem(
-          'Management',
-          _calculateAverageRating('management_rating'),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildRatingItem('Overall', overallRating),
+            _buildRatingItem(
+              'Payment',
+              double.tryParse(_ratings!['payment_punctuality']?.toString() ?? '0') ?? 0.0,
+            ),
+            _buildRatingItem(
+              'Support',
+              double.tryParse(_ratings!['support']?.toString() ?? '0') ?? 0.0,
+            ),
+            _buildRatingItem(
+              'Fairness',
+              double.tryParse(_ratings!['rate_fairness']?.toString() ?? '0') ?? 0.0,
+            ),
+          ],
         ),
-        _buildRatingItem('Support', _calculateAverageRating('support_rating')),
-        _buildRatingItem(
-          'Profitability',
-          _calculateAverageRating('profitability_rating'),
-        ),
+        const SizedBox(height: AppDimensions.paddingSmall),
+        Text('Based on $totalReviews reviews', style: AppTextStyles.caption),
       ],
     );
   }
@@ -419,322 +391,41 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                   _buildInfoRow(
                     Icons.calendar_today,
                     'Established',
-                    _saccoData!['date_established'] ?? 'Not available',
-                  ),
-                  _buildInfoRow(
-                    Icons.person,
-                    'Manager',
-                    _saccoData!['manager_name'] ??
-                        _saccoData!['sacco_admin'] ??
-                        'Not available',
+                    _formatEstablishedDate(_saccoData!['date_established']),
                   ),
                   _buildInfoRow(
                     Icons.directions_bus,
-                    'Total Vehicles',
-                    '${_saccoData!['total_vehicles'] ?? 0}',
+                    'Fleet Size',
+                    '${_saccoData!['total_vehicles'] ?? 0} vehicles',
                   ),
                   _buildInfoRow(
-                    Icons.directions_bus,
+                    Icons.check_circle,
                     'Active Vehicles',
-                    '${_saccoData!['active_vehicles'] ?? 0}',
+                    '${_saccoData!['active_vehicles'] ?? 0} operational',
                   ),
-                  if (_saccoData!['description'] != null)
-                    _buildInfoRow(
-                      Icons.description,
-                      'Description',
-                      _saccoData!['description'],
-                    ),
+                  _buildInfoRow(
+                    Icons.route,
+                    'Available Routes',
+                    '${_routes.length} routes',
+                  ),
                 ],
               ),
             ),
           ),
-
-          // Routes Section
-          if (_fullSaccoResponse != null &&
-              _fullSaccoResponse!['routes'] != null) ...[
-            const SizedBox(height: AppDimensions.paddingMedium),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Available Routes', style: AppTextStyles.heading3),
-                    const SizedBox(height: AppDimensions.paddingMedium),
-                    ..._buildRoutesList(),
-                  ],
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  List<Widget> _buildRoutesList() {
-    final routes = _fullSaccoResponse!['routes'] as List<dynamic>;
-    if (routes.isEmpty) {
-      return [const Text('No routes available', style: AppTextStyles.body2)];
-    }
-
-    return routes.map<Widget>((route) {
-      return Container(
-        margin: const EdgeInsets.only(bottom: AppDimensions.paddingSmall),
-        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-        decoration: BoxDecoration(
-          color: AppColors.tan.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.tan.withOpacity(0.3)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.route, color: AppColors.brown, size: 20),
-                const SizedBox(width: AppDimensions.paddingSmall),
-                Expanded(
-                  child: Text(
-                    '${route['start_location']} → ${route['end_location']}',
-                    style: AppTextStyles.body1.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.paddingSmall),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Distance: ${route['distance']} km',
-                  style: AppTextStyles.caption,
-                ),
-                Text(
-                  'Duration: ${route['duration']}',
-                  style: AppTextStyles.caption,
-                ),
-                Text(
-                  'Fare: KES ${route['fare']}',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.success,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
-  Widget _buildFinancialsTab() {
-    if (_isLoadingDashboard) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_dashboardData == null) {
+  Widget _buildRoutesTab() {
+    if (_routes.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.assessment, size: 64, color: AppColors.grey),
+            Icon(Icons.route, size: 64, color: AppColors.grey),
             SizedBox(height: AppDimensions.paddingMedium),
-            Text('No financial data available', style: AppTextStyles.body1),
-          ],
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      child: Column(
-        children: [
-          // Revenue Overview
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Revenue Overview', style: AppTextStyles.heading3),
-                  const SizedBox(height: AppDimensions.paddingMedium),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildFinancialCard(
-                          'Monthly Revenue',
-                          'KES ${_dashboardData!['monthly_revenue'] ?? '0'}',
-                          Icons.trending_up,
-                          AppColors.success,
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.paddingMedium),
-                      Expanded(
-                        child: _buildFinancialCard(
-                          'Daily Average',
-                          'KES ${_dashboardData!['daily_average'] ?? '0'}',
-                          Icons.today,
-                          AppColors.purple,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppDimensions.paddingMedium),
-
-          // Expenses Overview
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Expenses Overview', style: AppTextStyles.heading3),
-                  const SizedBox(height: AppDimensions.paddingMedium),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildFinancialCard(
-                          'Operating Costs',
-                          'KES ${_dashboardData!['operating_costs'] ?? '0'}',
-                          Icons.build,
-                          AppColors.warning,
-                        ),
-                      ),
-                      const SizedBox(width: AppDimensions.paddingMedium),
-                      Expanded(
-                        child: _buildFinancialCard(
-                          'Maintenance',
-                          'KES ${_dashboardData!['maintenance_costs'] ?? '0'}',
-                          Icons.car_repair,
-                          AppColors.error,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: AppDimensions.paddingMedium),
-
-          // Profit Analysis
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Profit Analysis', style: AppTextStyles.heading3),
-                  const SizedBox(height: AppDimensions.paddingMedium),
-                  _buildProfitCard(
-                    'Net Profit',
-                    'KES ${_dashboardData!['net_profit'] ?? '0'}',
-                    double.tryParse(
-                          _dashboardData!['profit_margin']?.toString() ?? '0',
-                        ) ??
-                        0,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFinancialCard(
-    String title,
-    String amount,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 32),
-          const SizedBox(height: AppDimensions.paddingSmall),
-          Text(
-            title,
-            style: AppTextStyles.caption,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(amount, style: AppTextStyles.heading3.copyWith(color: color)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfitCard(String title, String amount, double margin) {
-    final isPositive = margin >= 0;
-    final color = isPositive ? AppColors.success : AppColors.error;
-
-    return Container(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isPositive ? Icons.trending_up : Icons.trending_down,
-            color: color,
-            size: 32,
-          ),
-          const SizedBox(width: AppDimensions.paddingMedium),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTextStyles.heading3),
-                Text(
-                  amount,
-                  style: AppTextStyles.heading2.copyWith(color: color),
-                ),
-                Text(
-                  '${margin.toStringAsFixed(1)}% margin',
-                  style: AppTextStyles.caption,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVehiclesTab() {
-    if (_isLoadingVehicles) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_vehicles.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.directions_bus, size: 64, color: AppColors.grey),
-            SizedBox(height: AppDimensions.paddingMedium),
-            Text('No vehicles in this sacco', style: AppTextStyles.body1),
+            Text('No routes available', style: AppTextStyles.body1),
           ],
         ),
       );
@@ -742,9 +433,9 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      itemCount: _vehicles.length,
+      itemCount: _routes.length,
       itemBuilder: (context, index) {
-        final vehicle = _vehicles[index];
+        final route = _routes[index];
         return Card(
           margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
           child: Padding(
@@ -761,7 +452,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(
-                        Icons.directions_bus,
+                        Icons.route,
                         color: AppColors.carafe,
                         size: 24,
                       ),
@@ -772,79 +463,73 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            vehicle['license_plate'] ?? 'Unknown Vehicle',
+                            '${route['start_location']} → ${route['end_location']}',
                             style: AppTextStyles.heading3,
                           ),
                           Text(
-                            '${vehicle['make'] ?? ''} ${vehicle['model'] ?? ''}'
-                                .trim(),
+                            'Distance: ${route['distance']} km • Duration: ${_formatDuration(route['duration'])}',
                             style: AppTextStyles.body2,
                           ),
                         ],
                       ),
                     ),
-                    if (vehicle['status'] != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _getStatusColor(
-                            vehicle['status'],
-                          ).withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          vehicle['status'].toString().toUpperCase(),
-                          style: AppTextStyles.caption.copyWith(
-                            color: _getStatusColor(vehicle['status']),
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
                 const SizedBox(height: AppDimensions.paddingMedium),
 
-                // Vehicle Stats
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildVehicleStatItem(
-                        'Monthly Earnings',
-                        'KES ${vehicle['monthly_earnings'] ?? '0'}',
-                        Icons.attach_money,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildVehicleStatItem(
-                        'Trips',
-                        '${vehicle['total_trips'] ?? '0'}',
-                        Icons.route,
-                      ),
-                    ),
-                    Expanded(
-                      child: _buildVehicleStatItem(
-                        'Rating',
-                        '${vehicle['rating'] ?? '0.0'}★',
-                        Icons.star,
-                      ),
-                    ),
-                  ],
-                ),
-
-                if (vehicle['route'] != null) ...[
-                  const SizedBox(height: AppDimensions.paddingSmall),
-                  Row(
+                // Route Stats
+                Container(
+                  padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+                  decoration: BoxDecoration(
+                    color: AppColors.tan.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
                     children: [
-                      Icon(Icons.route, size: 16, color: AppColors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Route: ${vehicle['route']}',
-                        style: AppTextStyles.caption,
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildRouteStatItem('Fare', 'KES ${route['fare']}', Icons.attach_money),
+                          _buildRouteStatItem('Daily Trips', '${route['avg_daily_trips'] ?? 0}', Icons.repeat),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.paddingMedium),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildRouteStatItem(
+                            'Monthly Revenue',
+                            'KES ${_formatCurrency(route['avg_monthly_revenue'] ?? '0')}',
+                            Icons.trending_up,
+                          ),
+                          _buildRouteStatItem(
+                            'Daily Revenue',
+                            'KES ${_formatCurrency(route['estimated_daily_revenue']?.toString() ?? '0')}',
+                            Icons.today,
+                          ),
+                        ],
                       ),
                     ],
+                  ),
+                ),
+
+                // Improved stops display
+                if (route['stops'] != null && route['stops'].isNotEmpty) ...[
+                  const SizedBox(height: AppDimensions.paddingMedium),
+                  const Text('Major Stops:', style: AppTextStyles.body1),
+                  const SizedBox(height: AppDimensions.paddingSmall),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.grey.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _buildStopsList(route['stops']),
+                    ),
                   ),
                 ],
               ],
@@ -855,31 +540,93 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     );
   }
 
-  Widget _buildVehicleStatItem(String label, String value, IconData icon) {
-    return Column(
-      children: [
-        Icon(icon, size: 20, color: AppColors.brown),
-        const SizedBox(height: 4),
-        Text(label, style: AppTextStyles.caption, textAlign: TextAlign.center),
+  List<Widget> _buildStopsList(List stops) {
+    // Filter out technical stop data and format properly
+    List<String> cleanStops = [];
+    
+    for (var stop in stops) {
+      if (stop is String) {
+        // If it's already a string, check if it looks like technical data
+        if (!stop.contains('id:') && !stop.contains('stage_name:') && !stop.contains('order:')) {
+          cleanStops.add(stop);
+        } else {
+          // Try to extract stage_name from technical format
+          final stageNameMatch = RegExp(r'stage_name:\s*([^,]+)').firstMatch(stop);
+          if (stageNameMatch != null) {
+            cleanStops.add(stageNameMatch.group(1)?.trim() ?? '');
+          }
+        }
+      } else if (stop is Map) {
+        // If it's a map, try to get the name field
+        final name = stop['name'] ?? stop['stage_name'] ?? stop['location'];
+        if (name != null) {
+          cleanStops.add(name.toString());
+        }
+      }
+    }
+
+    // Remove duplicates and empty strings
+    cleanStops = cleanStops.where((stop) => stop.isNotEmpty).toSet().toList();
+
+    if (cleanStops.isEmpty) {
+      return [
         Text(
-          value,
-          style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold),
+          'Stop information not available',
+          style: AppTextStyles.body2.copyWith(
+            color: AppColors.grey,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ];
+    }
+
+    return cleanStops.asMap().entries.map((entry) {
+      final index = entry.key;
+      final stop = entry.value;
+      final isLast = index == cleanStops.length - 1;
+      
+      return Padding(
+        padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
+        child: Row(
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color: index == 0 ? AppColors.success : 
+                       isLast ? AppColors.error : AppColors.brown,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                stop,
+                style: AppTextStyles.body2.copyWith(
+                  fontWeight: (index == 0 || isLast) ? FontWeight.w600 : FontWeight.normal,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }).toList();
+  }
+
+  Widget _buildRouteStatItem(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: AppColors.brown),
+        const SizedBox(width: 4),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: AppTextStyles.caption),
+            Text(value, style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold)),
+          ],
         ),
       ],
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'active':
-        return AppColors.success;
-      case 'inactive':
-        return AppColors.error;
-      case 'maintenance':
-        return AppColors.warning;
-      default:
-        return AppColors.grey;
-    }
   }
 
   Widget _buildReviewsTab() {
@@ -887,14 +634,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Use recent_reviews from API response if available
-    List<dynamic> reviewsToShow = _reviews;
-    if (_fullSaccoResponse != null &&
-        _fullSaccoResponse!['recent_reviews'] != null) {
-      reviewsToShow = _fullSaccoResponse!['recent_reviews'];
-    }
-
-    if (reviewsToShow.isEmpty) {
+    if (_reviews.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -908,9 +648,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                 final result = await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder:
-                        (context) =>
-                            AddOwnerReviewPage(saccoId: widget.saccoId),
+                    builder: (context) => AddOwnerReviewPage(saccoId: widget.saccoId),
                   ),
                 );
                 if (result == true) {
@@ -926,9 +664,9 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
 
     return ListView.builder(
       padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      itemCount: reviewsToShow.length,
+      itemCount: _reviews.length,
       itemBuilder: (context, index) {
-        final review = reviewsToShow[index];
+        final review = _reviews[index];
         return Card(
           margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
           child: Padding(
@@ -946,9 +684,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                             .toString()
                             .substring(0, 1)
                             .toUpperCase(),
-                        style: AppTextStyles.body1.copyWith(
-                          color: AppColors.carafe,
-                        ),
+                        style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
                       ),
                     ),
                     const SizedBox(width: AppDimensions.paddingMedium),
@@ -957,12 +693,8 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            review['owner_name'] ??
-                                review['user'] ??
-                                'Anonymous',
-                            style: AppTextStyles.body1.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            review['owner_name'] ?? review['user'] ?? 'Anonymous',
+                            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
                             _formatDate(review['created_at'] ?? review['date']),
@@ -971,35 +703,12 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                         ],
                       ),
                     ),
-                    _buildOverallRating(
-                      review['overall_rating'] ?? review['rating'] ?? 0,
-                    ),
+                    _buildOverallRating(review['overall_rating'] ?? review['rating'] ?? 0),
                   ],
                 ),
                 const SizedBox(height: AppDimensions.paddingMedium),
 
-                // Review ratings breakdown
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSmallRatingItem(
-                      'Payment',
-                      review['payment_punctuality'] ?? 0,
-                    ),
-                    _buildSmallRatingItem('Support', review['support'] ?? 0),
-                    _buildSmallRatingItem(
-                      'Fairness',
-                      review['rate_fairness'] ?? 0,
-                    ),
-                    _buildSmallRatingItem(
-                      'Management',
-                      review['management_rating'] ?? 0,
-                    ),
-                  ],
-                ),
-
                 if (review['review'] != null || review['comment'] != null) ...[
-                  const SizedBox(height: AppDimensions.paddingMedium),
                   Text(
                     review['review'] ?? review['comment'] ?? '',
                     style: AppTextStyles.body2,
@@ -1010,33 +719,6 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
           ),
         );
       },
-    );
-  }
-
-  Widget _buildSmallRatingItem(String label, dynamic rating) {
-    final ratingValue = double.tryParse(rating.toString()) ?? 0.0;
-    return Column(
-      children: [
-        Text(label, style: AppTextStyles.caption),
-        const SizedBox(height: 2),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.star,
-              size: 12,
-              color: ratingValue > 0 ? AppColors.warning : AppColors.grey,
-            ),
-            const SizedBox(width: 2),
-            Text(
-              ratingValue.toStringAsFixed(1),
-              style: AppTextStyles.caption.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
@@ -1087,6 +769,43 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
     );
   }
 
+  String _formatEstablishedDate(String? dateString) {
+    if (dateString == null) return 'Not available';
+    try {
+      final date = DateTime.parse(dateString);
+      return '${date.year}';
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _formatDuration(String? duration) {
+    if (duration == null) return 'Unknown';
+    // Convert "00:01:00" format to readable format
+    final parts = duration.split(':');
+    if (parts.length == 3) {
+      final hours = int.tryParse(parts[0]) ?? 0;
+      final minutes = int.tryParse(parts[1]) ?? 0;
+      if (hours > 0) {
+        return '${hours}h ${minutes}m';
+      } else {
+        return '${minutes}m';
+      }
+    }
+    return duration;
+  }
+
+  String _formatCurrency(String amount) {
+    final value = double.tryParse(amount) ?? 0;
+    if (value >= 1000000) {
+      return '${(value / 1000000).toStringAsFixed(1)}M';
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(0)}K';
+    } else {
+      return value.toStringAsFixed(0);
+    }
+  }
+
   String _formatDate(dynamic dateString) {
     if (dateString == null) return 'Unknown date';
 
@@ -1116,6 +835,33 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
   @override
   void dispose() {
     _tabController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+}
+
+// Custom SliverPersistentHeaderDelegate for the TabBar
+class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabBar _tabBar;
+
+  _SliverTabBarDelegate(this._tabBar);
+
+  @override
+  double get minExtent => _tabBar.preferredSize.height;
+  @override
+  double get maxExtent => _tabBar.preferredSize.height;
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      color: AppColors.tan,
+      child: _tabBar,
+    );
+  }
+
+  @override
+  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
+    return false;
   }
 }
