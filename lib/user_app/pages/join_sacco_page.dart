@@ -1,4 +1,3 @@
-// lib/screens/vehicle_owner/join_sacco_page.dart
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import '/services/vehicle_api_service.dart';
@@ -373,7 +372,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
           children: [
             Row(
               children: [
-                Icon(Icons.directions_car, color: Colors.blue[700], size: 24),
+                Icon(Icons.directions_car, color: Colors.green[700], size: 24),
                 const SizedBox(width: 12),
                 const Text(
                   'Select Vehicle to Join With',
@@ -393,11 +392,11 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                 margin: const EdgeInsets.only(bottom: 8),
                 decoration: BoxDecoration(
                   border: Border.all(
-                    color: isSelected ? Colors.blue : Colors.grey.shade300,
+                    color: isSelected ? Colors.green : Colors.grey.shade300,
                     width: isSelected ? 2 : 1,
                   ),
                   borderRadius: BorderRadius.circular(8),
-                  color: isSelected ? Colors.blue[50] : null,
+                  color: isSelected ? Colors.green[50] : null,
                 ),
                 child: RadioListTile<int>(
                   title: Text(
@@ -444,7 +443,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
           children: [
             Row(
               children: [
-                Icon(Icons.file_upload, color: Colors.blue[700], size: 24),
+                Icon(Icons.file_upload, color: Colors.green[700], size: 24),
                 const SizedBox(width: 12),
                 const Text(
                   'Required Documents',
@@ -528,17 +527,17 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.blue[50],
+                            color: Colors.green[50],
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.cloud_done, size: 16, color: Colors.blue),
+                              const Icon(Icons.cloud_done, size: 16, color: Colors.green),
                               const SizedBox(width: 4),
                               Expanded(
                                 child: Text(
                                   'Using existing: ${existingDoc['document_name'] ?? 'Uploaded document'}',
-                                  style: const TextStyle(fontSize: 12, color: Colors.blue),
+                                  style: const TextStyle(fontSize: 12, color: Colors.green),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -575,10 +574,10 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                         child: ElevatedButton(
                           onPressed: () => _pickDocumentForType(documentType),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: hasNewFile ? Colors.blue[100] : 
-                                           hasExistingDoc ? Colors.orange[100] : Colors.blue[50],
-                            foregroundColor: hasNewFile ? Colors.blue[700] : 
-                                           hasExistingDoc ? Colors.orange[700] : Colors.blue[700],
+                            backgroundColor: hasNewFile ? Colors.green[100] : 
+                                           hasExistingDoc ? Colors.orange[100] : Colors.green[50],
+                            foregroundColor: hasNewFile ? Colors.green[700] : 
+                                           hasExistingDoc ? Colors.orange[700] : Colors.green[700],
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(vertical: 8),
                           ),
@@ -637,7 +636,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Join ${widget.saccoName}'),
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.green[700],
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -659,7 +658,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                       Row(
                         children: [
                           Icon(Icons.business, 
-                               color: Colors.blue[700], size: 24),
+                               color: Colors.green[700], size: 24),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -840,7 +839,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
 
                 // Terms and Conditions
                 Card(
-                  color: Colors.blue[50],
+                  color: Colors.green[50],
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: CheckboxListTile(
@@ -872,7 +871,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                   child: ElevatedButton(
                     onPressed: (_isLoading || !_areAllDocumentsAvailable()) ? null : _submitJoinRequest,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[700],
+                      backgroundColor: Colors.green[700],
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
@@ -918,17 +917,155 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: Colors.blue[700], size: 20),
+        Icon(icon, color: Colors.green[700], size: 20),
         const SizedBox(width: 8),
         Text(
           title,
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,
-            color: Colors.blue[700],
+            color: Colors.green[700],
           ),
         ),
       ],
     );
+  }
+  // Add this method to validate form completeness
+  bool _isFormValid() {
+    return _selectedVehicleId != null &&
+           _selectedExperienceYears != null &&
+           _licenseNumberController.text.trim().isNotEmpty &&
+           _reasonController.text.trim().isNotEmpty &&
+           _areAllDocumentsAvailable() &&
+           _agreeToTerms;
+  }
+
+  // Add this method to show document preview
+  Widget _buildDocumentPreview(String documentType, PlatformFile file) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: Colors.grey[300]!),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getFileIcon(file.extension?.toLowerCase() ?? ''),
+            size: 20,
+            color: Colors.blue[600],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  file.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  '${(file.size / 1024 / 1024).toStringAsFixed(1)} MB',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: () => _removeDocument(documentType),
+            icon: const Icon(Icons.close, size: 16),
+            constraints: const BoxConstraints(),
+            padding: EdgeInsets.zero,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper method to get appropriate file icon
+  IconData _getFileIcon(String extension) {
+    switch (extension) {
+      case 'pdf':
+        return Icons.picture_as_pdf;
+      case 'jpg':
+      case 'jpeg':
+      case 'png':
+        return Icons.image;
+      case 'doc':
+      case 'docx':
+        return Icons.description;
+      default:
+        return Icons.insert_drive_file;
+    }
+  }
+
+  // Add this method to handle back navigation with confirmation
+  Future<bool> _onWillPop() async {
+    if (_isFormValid() && !_isLoading) {
+      return await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard Application?'),
+          content: const Text(
+            'You have unsaved changes. Are you sure you want to go back?'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      ) ?? false;
+    }
+    return true;
+  }
+
+  // Add validation for license number format
+  String? _validateLicenseNumber(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return 'License number is required';
+    }
+    
+    // Basic license number validation (adjust pattern as needed)
+    final licensePattern = RegExp(r'^[A-Z0-9]{6,15}$');
+    if (!licensePattern.hasMatch(value.trim().toUpperCase())) {
+      return 'Please enter a valid license number';
+    }
+    
+    return null;
+  }
+
+  // Add method to clear form data
+  void _clearFormData() {
+    _messageController.clear();
+    _reasonController.clear();
+    _licenseNumberController.clear();
+    
+    setState(() {
+      _selectedVehicleId = null;
+      _selectedRoutePreference = null;
+      _selectedExperienceYears = null;
+      _hasInsurance = false;
+      _hasValidLicense = false;
+      _agreeToTerms = false;
+      
+      // Clear document selections
+      _requiredDocuments.updateAll((key, value) => null);
+      _existingDocuments.clear();
+    });
   }
 }

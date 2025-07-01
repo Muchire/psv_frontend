@@ -1,5 +1,6 @@
 // lib/user_app/pages/sacco_vehicle_requests_page.dart
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/vehicle_api_service.dart';
 import '../utils/constants.dart';
 import '../widgets/loading_widget.dart';
@@ -369,41 +370,28 @@ class _SaccoVehicleRequestsPageState extends State<SaccoVehicleRequestsPage> {
     );
   }
 
+  // Updated _buildRequestCard method to correctly access nested vehicle data
   Widget _buildRequestCard(Map<String, dynamic> request) {
     print('DEBUG: Building request card for request: $request');
     
-    // Extract request data with fallbacks for different possible field names
+    // Extract request data - the vehicle data is not nested under 'vehicle_details'
     final requestId = request['id'] ?? request['request_id'];
+    final vehicleOwnerName = request['owner_name'] ?? 'Unknown Owner';
+    final vehicleDocuments = request['vehicle_documents'] ?? [];
     
-    // Fix: Use the correct field name from your debug output
-    final vehicleOwnerName = request['owner_name'] ?? 
-                            request['vehicle_owner_name'] ?? 
-                            request['user_name'] ?? 
-                            request['name'] ?? 
-                            'Unknown Owner';
+    // Vehicle information is directly in the request object based on your serializer
+    final vehicleRegistration = request['vehicle_registration'] ?? 'N/A';
+    final vehicleMake = request['vehicle_make'] ?? 'Unknown';
+    final vehicleModel = request['vehicle_model'] ?? 'Model';
+    final vehicleYear = request['vehicle_year']?.toString() ?? '';
     
-    // Fix: Use 'vehicle_details' instead of 'vehicle_info' or 'vehicle'
-    final vehicleInfo = request['vehicle_details'] ?? {};
-    
-    // Fix: Use the correct field names from your debug output
-    final plateNumber = vehicleInfo['registration_number'] ?? 
-                      vehicleInfo['plate_number'] ?? 
-                      'N/A';
-    
-    final vehicleModel = '${vehicleInfo['make'] ?? 'Unknown'} ${vehicleInfo['model'] ?? 'Model'}';
-    
-    // Fix: Use the correct field name
-    final requestDate = request['requested_at'] ?? request['created_at'] ?? request['request_date'] ?? '';
-    
-    // Fix: Use the correct field name
-    final phoneNumber = request['owner_phone'] ?? request['phone_number'] ?? request['contact'] ?? '';
-    
-    // Additional vehicle info that's available
-    final vehicleType = vehicleInfo['vehicle_type'] ?? '';
-    final seatingCapacity = vehicleInfo['seating_capacity']?.toString() ?? '';
-    final year = vehicleInfo['year']?.toString() ?? '';
+    final requestDate = request['requested_at'] ?? '';
+    final phoneNumber = request['owner_phone'] ?? '';
+    final experienceYears = request['experience_years']?.toString() ?? '';
+    final reasonForJoining = request['reason_for_joining'] ?? '';
+    final preferredRoutes = request['preferred_routes'] ?? [];
 
-    print('DEBUG: Extracted data - requestId: $requestId, owner: $vehicleOwnerName, plate: $plateNumber, model: $vehicleModel');
+    print('DEBUG: Found ${vehicleDocuments.length} documents for this vehicle');
 
     return Card(
       elevation: 3,
@@ -510,26 +498,18 @@ class _SaccoVehicleRequestsPageState extends State<SaccoVehicleRequestsPage> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Model: $vehicleModel',
-                          style: AppTextStyles.body2,
+                          'Registration: $vehicleRegistration',
+                          style: AppTextStyles.body2.copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         Text(
-                          'Registration: $plateNumber',
+                          'Model: $vehicleMake $vehicleModel',
                           style: AppTextStyles.body2,
                         ),
-                        if (vehicleType.isNotEmpty)
+                        if (vehicleYear.isNotEmpty)
                           Text(
-                            'Type: ${vehicleType.toUpperCase()}',
-                            style: AppTextStyles.body2,
-                          ),
-                        if (seatingCapacity.isNotEmpty)
-                          Text(
-                            'Capacity: $seatingCapacity seats',
-                            style: AppTextStyles.body2,
-                          ),
-                        if (year.isNotEmpty)
-                          Text(
-                            'Year: $year',
+                            'Year: $vehicleYear',
                             style: AppTextStyles.body2,
                           ),
                       ],
@@ -538,6 +518,18 @@ class _SaccoVehicleRequestsPageState extends State<SaccoVehicleRequestsPage> {
                 ],
               ),
             ),
+
+            // Additional request information
+            if (experienceYears.isNotEmpty || reasonForJoining.isNotEmpty || preferredRoutes.isNotEmpty) ...[
+              const SizedBox(height: AppDimensions.paddingMedium),
+              _buildRequestInfoSection(experienceYears, reasonForJoining, preferredRoutes),
+            ],
+            
+            // Vehicle Documents Section
+            if (vehicleDocuments.isNotEmpty) ...[
+              const SizedBox(height: AppDimensions.paddingMedium),
+              _buildDocumentsSection(vehicleDocuments),
+            ],
             
             const SizedBox(height: AppDimensions.paddingMedium),
             
@@ -605,23 +597,371 @@ class _SaccoVehicleRequestsPageState extends State<SaccoVehicleRequestsPage> {
     );
   }
 
+  // Add this method to display additional request information
+  Widget _buildRequestInfoSection(String experienceYears, String reasonForJoining, List<dynamic> preferredRoutes) {
+    return Container(
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: AppColors.brown,
+                size: 20,
+              ),
+              const SizedBox(width: AppDimensions.paddingSmall),
+              Text(
+                'Request Details',
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.brown,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.paddingSmall),
+          if (experienceYears.isNotEmpty)
+            Text(
+              'Experience: $experienceYears years',
+              style: AppTextStyles.body2,
+            ),
+          if (preferredRoutes.isNotEmpty)
+            Text(
+              'Preferred Routes: ${preferredRoutes.join(', ')}',
+              style: AppTextStyles.body2,
+            ),
+          if (reasonForJoining.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Reason for joining:',
+              style: AppTextStyles.body2.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            Text(
+              reasonForJoining,
+              style: AppTextStyles.body2.copyWith(
+                color: AppColors.grey,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Updated documents section to handle the correct data structure
+  Widget _buildDocumentsSection(List<dynamic> documents) {
+    return Container(
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+        border: Border.all(
+          color: AppColors.brown.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.description,
+                color: AppColors.brown,
+                size: 20,
+              ),
+              const SizedBox(width: AppDimensions.paddingSmall),
+              Text(
+                'Vehicle Documents (${documents.length})',
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.brown,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.paddingSmall),
+          ...documents.map((doc) => _buildDocumentItem(doc)).toList(),
+        ],
+      ),
+    );
+  }
+
+  // Updated document item to handle the correct field names from your serializer
+  Widget _buildDocumentItem(Map<String, dynamic> document) {
+    final documentType = document['document_type_display'] ?? 
+                        document['document_type'] ?? 
+                        'Unknown Document';
+    final documentName = document['document_name'] ?? '';
+    final isVerified = document['is_verified'] ?? false;
+    final expiryDate = document['expiry_date'];
+    final isExpired = document['is_expired'] ?? false;
+    final daysUntilExpiry = document['days_until_expiry'];
+    final documentUrl = document['document_url'];
+
+    Color statusColor = AppColors.grey;
+    String statusText = 'Unverified';
+    IconData statusIcon = Icons.help_outline;
+
+    if (isVerified) {
+      statusColor = AppColors.green;
+      statusText = 'Verified';
+      statusIcon = Icons.verified;
+    } else if (isExpired) {
+      statusColor = AppColors.red;
+      statusText = 'Expired';
+      statusIcon = Icons.error_outline;
+    } else if (daysUntilExpiry != null && daysUntilExpiry <= 30) {
+      statusColor = AppColors.orange;
+      statusText = 'Expiring Soon';
+      statusIcon = Icons.warning_outlined;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppDimensions.paddingSmall),
+      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+        border: Border.all(
+          color: statusColor.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getDocumentIcon(document['document_type']),
+            color: AppColors.brown,
+            size: 20,
+          ),
+          const SizedBox(width: AppDimensions.paddingSmall),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  documentType,
+                  style: AppTextStyles.body2.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                if (documentName.isNotEmpty)
+                  Text(
+                    documentName,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.grey,
+                    ),
+                  ),
+                if (expiryDate != null)
+                  Text(
+                    'Expires: ${_formatDate(expiryDate)}',
+                    style: AppTextStyles.caption.copyWith(
+                      color: isExpired ? AppColors.red : AppColors.grey,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // Status indicator
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 8,
+              vertical: 4,
+            ),
+            decoration: BoxDecoration(
+              color: statusColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  statusIcon,
+                  size: 12,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  statusText,
+                  style: AppTextStyles.caption.copyWith(
+                    color: statusColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // View document button
+          if (documentUrl != null && documentUrl.toString().isNotEmpty) ...[
+            const SizedBox(width: AppDimensions.paddingSmall),
+            IconButton(
+              onPressed: () => _viewDocument(documentUrl, documentType),
+              icon: Icon(
+                Icons.visibility,
+                color: AppColors.brown,
+                size: 20,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 32,
+                minHeight: 32,
+              ),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  // Updated to handle the correct document types from your model
+  IconData _getDocumentIcon(String? documentType) {
+    switch (documentType?.toLowerCase()) {
+      case 'logbook':
+        return Icons.book;
+      case 'insurance':
+        return Icons.security;
+      case 'inspection':
+        return Icons.search;
+      case 'license':
+        return Icons.card_membership;
+      case 'permit':
+        return Icons.approval;
+      case 'ntsa':
+        return Icons.verified_user;
+      case 'other':
+        return Icons.description;
+      default:
+        return Icons.description;
+    }
+  }
+
+  void _viewDocument(String documentUrl, String documentType) async {
+    try {
+      final Uri url = Uri.parse(documentUrl);
+      
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                _getDocumentIcon(documentType.toLowerCase()),
+                color: AppColors.brown,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  documentType,
+                  style: AppTextStyles.heading3.copyWith(
+                    color: AppColors.brown,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This will open the document in your default browser or document viewer.',
+                style: AppTextStyles.body2,
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.lightGrey.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.link,
+                      color: AppColors.grey,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        documentUrl,
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.grey,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.grey),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context);
+                
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(
+                    url,
+                    mode: LaunchMode.externalApplication,
+                  );
+                } else {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: const Text('Could not open document'),
+                        backgroundColor: AppColors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              icon: const Icon(Icons.open_in_new),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brown,
+                foregroundColor: AppColors.white,
+              ),
+              label: const Text('Open Document'),
+            ),
+          ],
+          ),
+      );
+    } catch (e) {
+      print('DEBUG: Error opening document: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error opening document: ${e.toString()}'),
+            backgroundColor: AppColors.red,
+          ),
+        );
+      }
+    }
+  }
+
   String _formatDate(String dateString) {
     try {
-      final date = DateTime.parse(dateString);
-      final now = DateTime.now();
-      final difference = now.difference(date);
-      
-      if (difference.inDays == 0) {
-        return 'Today';
-      } else if (difference.inDays == 1) {
-        return 'Yesterday';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
-      } else {
-        return '${date.day}/${date.month}/${date.year}';
-      }
+      final DateTime dateTime = DateTime.parse(dateString);
+      return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
     } catch (e) {
-      return dateString;
+      print('DEBUG: Error formatting date: $dateString, error: $e');
+      return dateString; // Return original string if parsing fails
     }
   }
 }

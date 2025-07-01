@@ -32,7 +32,7 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
 
   Future<void> _loadSaccoDetails() async {
     try {
-      final data = await ApiService.getSaccoDetail(widget.saccoId);
+      final data = await ApiService.getSaccoDetailPOV(widget.saccoId);
       setState(() {
         _saccoData = data;
         _isLoading = false;

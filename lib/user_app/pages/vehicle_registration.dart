@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:psv_frontend/services/vehicle_api_service.dart';
-import '/services/api_service.dart';
 import '../utils/constants.dart';
 
 class VehicleRegistrationDialog extends StatefulWidget {
@@ -18,13 +17,16 @@ class VehicleRegistrationDialog extends StatefulWidget {
 class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
   final _formKey = GlobalKey<FormState>();
   final _plateNumberController = TextEditingController();
+  final _registrationNumberController = TextEditingController();
   final _makeController = TextEditingController();
   final _modelController = TextEditingController();
   final _yearController = TextEditingController();
   final _colorController = TextEditingController();
   final _seatingCapacityController = TextEditingController();
+  final _fuelConsumptionController = TextEditingController();
   
   String _selectedVehicleType = 'matatu';
+  String _selectedFuelType = 'petrol';
   bool _isRegistering = false;
 
   final List<String> _vehicleTypes = [
@@ -35,6 +37,13 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
     'tuk_tuk',
   ];
 
+  final List<String> _fuelTypes = [
+    'petrol',
+    'diesel',
+    'electric',
+    'hybrid',
+  ];
+
   final Map<String, String> _vehicleTypeLabels = {
     'matatu': 'Matatu',
     'bus': 'Bus',
@@ -43,14 +52,23 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
     'tuk_tuk': 'Tuk Tuk',
   };
 
+  final Map<String, String> _fuelTypeLabels = {
+    'petrol': 'Petrol',
+    'diesel': 'Diesel',
+    'electric': 'Electric',
+    'hybrid': 'Hybrid',
+  };
+
   @override
   void dispose() {
     _plateNumberController.dispose();
+    _registrationNumberController.dispose();
     _makeController.dispose();
     _modelController.dispose();
     _yearController.dispose();
     _colorController.dispose();
     _seatingCapacityController.dispose();
+    _fuelConsumptionController.dispose();
     super.dispose();
   }
 
@@ -62,12 +80,15 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
     try {
       final vehicleData = {
         'plate_number': _plateNumberController.text.trim().toUpperCase(),
+        'registration_number': _registrationNumberController.text.trim().toUpperCase(),
         'make': _makeController.text.trim(),
         'model': _modelController.text.trim(),
         'year': int.parse(_yearController.text.trim()),
         'color': _colorController.text.trim(),
         'vehicle_type': _selectedVehicleType,
         'seating_capacity': int.parse(_seatingCapacityController.text.trim()),
+        'fuel_type': _selectedFuelType,
+        'fuel_consumption_per_km': double.parse(_fuelConsumptionController.text.trim()),
       };
 
       final response = await VehicleOwnerService.registerVehicle(vehicleData);
@@ -102,7 +123,7 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       child: Container(
-        constraints: const BoxConstraints(maxHeight: 600),
+        constraints: const BoxConstraints(maxHeight: 700, maxWidth: 500),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -173,25 +194,50 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                       ),
                       const SizedBox(height: AppDimensions.paddingMedium),
 
-                      // Plate Number
-                      TextFormField(
-                        controller: _plateNumberController,
-                        decoration: const InputDecoration(
-                          labelText: 'License Plate Number',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.confirmation_number),
-                          hintText: 'e.g., KBA 123A',
-                        ),
-                        textCapitalization: TextCapitalization.characters,
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return 'Please enter the license plate number';
-                          }
-                          if (value.trim().length < 6) {
-                            return 'Please enter a valid license plate number';
-                          }
-                          return null;
-                        },
+                      // Plate Number and Registration Number Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _plateNumberController,
+                              decoration: const InputDecoration(
+                                labelText: 'License Plate',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.confirmation_number),
+                                hintText: 'e.g., KBA 123A',
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                if (value.trim().length < 6) {
+                                  return 'Invalid format';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppDimensions.paddingSmall),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _registrationNumberController,
+                              decoration: const InputDecoration(
+                                labelText: 'Registration No.',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.assignment),
+                                hintText: 'e.g., KBA123A',
+                              ),
+                              textCapitalization: TextCapitalization.characters,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppDimensions.paddingMedium),
 
@@ -209,7 +255,7 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                               textCapitalization: TextCapitalization.words,
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter the vehicle make';
+                                  return 'Required';
                                 }
                                 return null;
                               },
@@ -227,7 +273,7 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                               textCapitalization: TextCapitalization.words,
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter the vehicle model';
+                                  return 'Required';
                                 }
                                 return null;
                               },
@@ -251,11 +297,11 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                               keyboardType: TextInputType.number,
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter the year';
+                                  return 'Required';
                                 }
                                 final year = int.tryParse(value.trim());
                                 if (year == null || year < 1980 || year > DateTime.now().year + 1) {
-                                  return 'Please enter a valid year';
+                                  return 'Invalid year';
                                 }
                                 return null;
                               },
@@ -273,7 +319,7 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                               textCapitalization: TextCapitalization.words,
                               validator: (value) {
                                 if (value == null || value.trim().isEmpty) {
-                                  return 'Please enter the vehicle color';
+                                  return 'Required';
                                 }
                                 return null;
                               },
@@ -283,23 +329,79 @@ class _VehicleRegistrationDialogState extends State<VehicleRegistrationDialog> {
                       ),
                       const SizedBox(height: AppDimensions.paddingMedium),
 
-                      // Seating Capacity
+                      // Seating Capacity and Fuel Type Row
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _seatingCapacityController,
+                              decoration: const InputDecoration(
+                                labelText: 'Seating Capacity',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.airline_seat_recline_normal),
+                                hintText: 'e.g., 14',
+                              ),
+                              keyboardType: TextInputType.number,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Required';
+                                }
+                                final capacity = int.tryParse(value.trim());
+                                if (capacity == null || capacity < 1 || capacity > 100) {
+                                  return 'Invalid (1-100)';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: AppDimensions.paddingSmall),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _selectedFuelType,
+                              decoration: const InputDecoration(
+                                labelText: 'Fuel Type',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.local_gas_station),
+                              ),
+                              items: _fuelTypes.map((type) {
+                                return DropdownMenuItem(
+                                  value: type,
+                                  child: Text(_fuelTypeLabels[type] ?? type),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedFuelType = value!);
+                              },
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Required';
+                                }
+                                return null;
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.paddingMedium),
+
+                      // Fuel Consumption
                       TextFormField(
-                        controller: _seatingCapacityController,
+                        controller: _fuelConsumptionController,
                         decoration: const InputDecoration(
-                          labelText: 'Seating Capacity',
+                          labelText: 'Fuel Consumption (L/km)',
                           border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.airline_seat_recline_normal),
-                          hintText: 'e.g., 14',
+                          prefixIcon: Icon(Icons.speed),
+                          hintText: 'e.g., 0.12',
+                          helperText: 'Liters consumed per kilometer',
                         ),
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return 'Please enter the seating capacity';
+                            return 'Please enter fuel consumption';
                           }
-                          final capacity = int.tryParse(value.trim());
-                          if (capacity == null || capacity < 1 || capacity > 100) {
-                            return 'Please enter a valid seating capacity (1-100)';
+                          final consumption = double.tryParse(value.trim());
+                          if (consumption == null || consumption <= 0 || consumption > 1) {
+                            return 'Enter valid consumption (0.01-1.0)';
                           }
                           return null;
                         },

@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import '/services/api_service.dart';
 import 'package:file_picker/file_picker.dart';
 
-
 class VehicleOwnerService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
   static const String vehicleOwnerPath = '/vehicles';
@@ -374,6 +373,7 @@ class VehicleOwnerService {
       throw Exception('Error fetching join requests: $e');
     }
   }
+
   // Get vehicle trips
   static Future<List<dynamic>> getVehicleTrips(dynamic vehicleId) async {
     try {
@@ -629,7 +629,8 @@ class VehicleOwnerService {
       );
 
       // Add authorization header
-      final token = await ApiService.getToken(); // Use the existing static method from ApiService
+      final token =
+          await ApiService.getToken(); // Use the existing static method from ApiService
       request.headers['Authorization'] = 'Token $token';
 
       // Add sacco_id to the request data
@@ -765,6 +766,7 @@ class VehicleOwnerService {
 
     return displayNames[documentType] ?? documentType;
   }
+
   // Add this method to your VehicleOwnerService class
   static Future<Map<String, dynamic>> uploadVehicleDocument(
     int vehicleId,
@@ -773,16 +775,16 @@ class VehicleOwnerService {
   ) async {
     try {
       print('Uploading $documentType for vehicle $vehicleId');
-      
+
       final uri = Uri.parse('$baseUrl/vehicles/$vehicleId/documents/');
       final request = http.MultipartRequest('POST', uri);
-      
+
       // Add authentication headers
       final token = await ApiService.getToken();
       if (token != null) {
         request.headers['Authorization'] = 'Token $token';
       }
-      
+
       // Add the file
       final multipartFile = http.MultipartFile.fromBytes(
         'document_file',
@@ -790,26 +792,28 @@ class VehicleOwnerService {
         filename: file.name,
       );
       request.files.add(multipartFile);
-      
+
       // Add required fields
       request.fields['document_type'] = documentType;
       request.fields['document_name'] = file.name; // This was missing!
-      
+
       // Optional: Add expiry date if you have it
       // request.fields['expiry_date'] = '2025-12-31'; // Format: YYYY-MM-DD
-      
+
       print('Sending upload request for $documentType...');
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       print('Document upload response: ${response.statusCode}');
       print('Response body: ${response.body}');
-      
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
-        throw Exception('Failed to upload $documentType: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to upload $documentType: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error uploading document: $e');
@@ -826,16 +830,16 @@ class VehicleOwnerService {
   ) async {
     try {
       print('Uploading $documentType for vehicle $vehicleId');
-      
+
       final uri = Uri.parse('$baseUrl/vehicles/$vehicleId/documents/');
       final request = http.MultipartRequest('POST', uri);
-      
+
       // Add authentication headers
       final token = await ApiService.getToken();
       if (token != null) {
         request.headers['Authorization'] = 'Token $token';
       }
-      
+
       // Add the file
       final multipartFile = http.MultipartFile.fromBytes(
         'document_file',
@@ -843,34 +847,38 @@ class VehicleOwnerService {
         filename: file.name,
       );
       request.files.add(multipartFile);
-      
+
       // Add required fields
       request.fields['document_type'] = documentType;
       request.fields['document_name'] = customDocumentName; // Use custom name
-      
+
       print('Sending upload request for $documentType...');
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       print('Document upload response: ${response.statusCode}');
       print('Response body: ${response.body}');
-      
+
       if (response.statusCode == 201 || response.statusCode == 200) {
         final responseData = json.decode(response.body);
         return responseData;
       } else {
-        throw Exception('Failed to upload $documentType: ${response.statusCode} - ${response.body}');
+        throw Exception(
+          'Failed to upload $documentType: ${response.statusCode} - ${response.body}',
+        );
       }
     } catch (e) {
       print('Error uploading document: $e');
       rethrow;
     }
   }
+
   // Updated join request method - no file uploads, just form data
   static Future<Map<String, dynamic>> createJoinRequestForSacco(
     int saccoId,
     Map<String, dynamic> requestData, {
-    Map<String, PlatformFile>? documents, // Keep for compatibility but won't use for upload
+    Map<String, PlatformFile>?
+    documents, // Keep for compatibility but won't use for upload
   }) async {
     try {
       print('Creating join request for Sacco ID: $saccoId');
@@ -892,7 +900,7 @@ class VehicleOwnerService {
         return json.decode(response.body);
       } else {
         final errorBody = response.body;
-        
+
         // Parse error details
         try {
           final errorData = json.decode(errorBody);
@@ -905,7 +913,9 @@ class VehicleOwnerService {
           // If can't parse as JSON, use raw response
         }
 
-        throw Exception('Failed to create join request: ${response.statusCode} - $errorBody');
+        throw Exception(
+          'Failed to create join request: ${response.statusCode} - $errorBody',
+        );
       }
     } catch (e) {
       print('Exception in createJoinRequestForSacco: $e');
@@ -922,18 +932,22 @@ class VehicleOwnerService {
   ) async {
     try {
       print('Starting complete join request submission...');
-      
+
       // Step 1: Upload all documents first
       final uploadedDocuments = <String, Map<String, dynamic>>{};
-      
+
       for (var entry in documents.entries) {
         final documentType = entry.key;
         final file = entry.value;
-        
+
         print('Uploading $documentType...');
-        
+
         try {
-          final uploadResult = await uploadVehicleDocument(vehicleId, documentType, file);
+          final uploadResult = await uploadVehicleDocument(
+            vehicleId,
+            documentType,
+            file,
+          );
           uploadedDocuments[documentType] = uploadResult;
           print('Successfully uploaded $documentType');
         } catch (e) {
@@ -941,27 +955,27 @@ class VehicleOwnerService {
           throw Exception('Failed to upload $documentType: $e');
         }
       }
-      
+
       // Step 2: Create join request (documents should now exist in database)
       print('All documents uploaded, creating join request...');
-      
+
       final joinRequestResponse = await createJoinRequestForSacco(
         saccoId,
         requestData,
       );
-      
+
       print('Join request created successfully');
-      
+
       return {
         'join_request': joinRequestResponse,
         'uploaded_documents': uploadedDocuments,
       };
-      
     } catch (e) {
       print('Error in submitJoinRequestWithDocuments: $e');
       rethrow;
     }
   }
+
   static Future<Map<String, dynamic>> updateVehicleDocument(
     int vehicleId,
     int documentId,
@@ -977,9 +991,7 @@ class VehicleOwnerService {
         Uri.parse('$baseUrl/vehicles/$vehicleId/documents/$documentId/'),
       );
 
-      request.headers.addAll({
-        'Authorization': 'Token $token',
-      });
+      request.headers.addAll({'Authorization': 'Token $token'});
 
       request.fields['document_type'] = documentType;
 
@@ -1006,7 +1018,9 @@ class VehicleOwnerService {
       if (response.statusCode == 200) {
         return json.decode(responseBody);
       } else {
-        throw Exception('Failed to update document: ${response.statusCode} - $responseBody');
+        throw Exception(
+          'Failed to update document: ${response.statusCode} - $responseBody',
+        );
       }
     } catch (e) {
       print('Error updating document: $e');
@@ -1014,9 +1028,10 @@ class VehicleOwnerService {
     }
   }
 
-
   // Get vehicle with updated sacco information
-  static Future<Map<String, dynamic>> getVehicleWithSacco(dynamic vehicleId) async {
+  static Future<Map<String, dynamic>> getVehicleWithSacco(
+    dynamic vehicleId,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/vehicles/$vehicleId/sacco-details'),
@@ -1030,33 +1045,44 @@ class VehicleOwnerService {
         throw Exception('Vehicle not found');
       } else {
         final errorData = json.decode(response.body);
-        throw Exception(errorData['message'] ?? 'Failed to load vehicle details');
+        throw Exception(
+          errorData['message'] ?? 'Failed to load vehicle details',
+        );
       }
     } catch (e) {
       throw Exception('Error fetching vehicle with sacco info: $e');
     }
   }
-
   static Future<List<dynamic>> getPendingSaccoRequests(String saccoId) async {
-    final url = '$baseUrl/sacco/$saccoId/join-requests/pending/';
+    final url = '$baseUrl/vehicles/$saccoId/join-requests/pending/';
     print('DEBUG: Calling GET $url');
-    
+
     try {
       final headers = await ApiService.getHeaders();
       print('DEBUG: Headers: $headers');
-      
-      final response = await http.get(
-        Uri.parse(url),
-        headers: headers,
-      );
-      
+
+      final response = await http.get(Uri.parse(url), headers: headers);
+
       print('DEBUG: Response status: ${response.statusCode}');
       print('DEBUG: Response body: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         final jsonResponse = json.decode(response.body);
+        print('DEBUG: jsonResponse type: ${jsonResponse.runtimeType}');
+        print('DEBUG: jsonResponse data field type: ${jsonResponse['data'].runtimeType}');
+        
         if (jsonResponse['success'] == true) {
-          return jsonResponse['data'] ?? [];
+          final data = jsonResponse['data'];
+          
+          // Ensure we return a proper List<dynamic>
+          if (data is List) {
+            return List<dynamic>.from(data);
+          } else if (data == null) {
+            return <dynamic>[];
+          } else {
+            print('DEBUG: Unexpected data type: ${data.runtimeType}, value: $data');
+            return <dynamic>[];
+          }
         } else {
           throw Exception(jsonResponse['error'] ?? 'Failed to load requests');
         }
@@ -1069,24 +1095,24 @@ class VehicleOwnerService {
       print('DEBUG: Error in getPendingSaccoRequests: $e');
       rethrow;
     }
-  }
+}
 
   static Future<void> approveSaccoRequest(dynamic requestId) async {
     final url = '$baseUrl/vehicles/join-requests/$requestId/approve/';
     print('DEBUG: Calling POST $url');
-    
+
     try {
       final headers = await ApiService.getHeaders();
-      
+
       final response = await http.post(
         Uri.parse(url),
         headers: headers,
         body: json.encode({}), // Empty body for approval
       );
-      
+
       print('DEBUG: Approve response status: ${response.statusCode}');
       print('DEBUG: Approve response body: ${response.body}');
-      
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonResponse = json.decode(response.body);
         if (jsonResponse['success'] != true) {
@@ -1106,24 +1132,25 @@ class VehicleOwnerService {
     }
   }
 
-  static Future<void> rejectSaccoRequest(dynamic requestId, String reason) async {
+  static Future<void> rejectSaccoRequest(
+    dynamic requestId,
+    String reason,
+  ) async {
     final url = '$baseUrl/vehicles/join-requests/$requestId/reject/';
     print('DEBUG: Calling POST $url');
-    
+
     try {
       final headers = await ApiService.getHeaders();
-      
+
       final response = await http.post(
         Uri.parse(url),
         headers: headers,
-        body: json.encode({
-          'reason': reason,
-        }),
+        body: json.encode({'reason': reason}),
       );
-      
+
       print('DEBUG: Reject response status: ${response.statusCode}');
       print('DEBUG: Reject response body: ${response.body}');
-      
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final jsonResponse = json.decode(response.body);
         if (jsonResponse['success'] != true) {
@@ -1142,7 +1169,8 @@ class VehicleOwnerService {
       rethrow;
     }
   }
-    // Vehicle Registration Method
+
+  // Vehicle Registration Method
   static Future<Map<String, dynamic>> registerVehicle(
     Map<String, dynamic> vehicleData,
   ) async {
@@ -1152,12 +1180,15 @@ class VehicleOwnerService {
       // Validate required fields
       final requiredFields = [
         'plate_number',
+        'registration_number',
         'make', 
         'model',
         'year',
         'color',
         'vehicle_type',
-        'seating_capacity'
+        'seating_capacity',
+        'fuel_type',
+        'fuel_consumption_per_km'
       ];
 
       for (String field in requiredFields) {
@@ -1166,13 +1197,20 @@ class VehicleOwnerService {
         }
       }
 
-      // Ensure plate number is uppercase
+      // Ensure plate number and registration number are uppercase
       vehicleData['plate_number'] = vehicleData['plate_number'].toString().toUpperCase().trim();
+      vehicleData['registration_number'] = vehicleData['registration_number'].toString().toUpperCase().trim();
 
       // Validate vehicle type
-      final validVehicleTypes = ['matatu', 'bus',  'tuk_tuk'];
+      final validVehicleTypes = ['matatu', 'bus', 'taxi', 'boda_boda', 'tuk_tuk'];
       if (!validVehicleTypes.contains(vehicleData['vehicle_type'])) {
         throw Exception('Invalid vehicle type: ${vehicleData['vehicle_type']}');
+      }
+
+      // Validate fuel type
+      final validFuelTypes = ['petrol', 'diesel', 'electric', 'hybrid'];
+      if (!validFuelTypes.contains(vehicleData['fuel_type'])) {
+        throw Exception('Invalid fuel type: ${vehicleData['fuel_type']}');
       }
 
       print('Registering vehicle with data: $vehicleData'); // Debug
@@ -1206,6 +1244,17 @@ class VehicleOwnerService {
             if (plateErrors.first.toString().contains('already exists') ||
                 plateErrors.first.toString().contains('duplicate')) {
               throw Exception('A vehicle with this plate number is already registered');
+            }
+          }
+        }
+
+        if (errorData is Map && errorData.containsKey('registration_number')) {
+          // Check if it's a duplicate registration number error
+          final regErrors = errorData['registration_number'];
+          if (regErrors is List && regErrors.isNotEmpty) {
+            if (regErrors.first.toString().contains('already exists') ||
+                regErrors.first.toString().contains('duplicate')) {
+              throw Exception('A vehicle with this registration number is already registered');
             }
           }
         }
@@ -1274,6 +1323,12 @@ class VehicleOwnerService {
     } else if (plateNumber.length < 6) {
       errors['plate_number'] = 'Please enter a valid plate number';
     }
+
+    // Validate registration number
+    final registrationNumber = vehicleData['registration_number']?.toString().trim();
+    if (registrationNumber == null || registrationNumber.isEmpty) {
+      errors['registration_number'] = 'Registration number is required';
+    }
     
     // Validate year
     final year = vehicleData['year'];
@@ -1291,6 +1346,14 @@ class VehicleOwnerService {
         errors['seating_capacity'] = 'Seating capacity must be between 1 and 100';
       }
     }
+
+    // Validate fuel consumption
+    final fuelConsumption = vehicleData['fuel_consumption_per_km'];
+    if (fuelConsumption != null) {
+      if (fuelConsumption is! double || fuelConsumption <= 0 || fuelConsumption > 1) {
+        errors['fuel_consumption_per_km'] = 'Fuel consumption must be between 0.01 and 1.0 L/km';
+      }
+    }
     
     // Validate make and model
     final make = vehicleData['make']?.toString().trim();
@@ -1301,6 +1364,13 @@ class VehicleOwnerService {
     final model = vehicleData['model']?.toString().trim();
     if (model == null || model.isEmpty) {
       errors['model'] = 'Vehicle model is required';
+    }
+
+    // Validate fuel type
+    final fuelType = vehicleData['fuel_type']?.toString();
+    final validFuelTypes = ['petrol', 'diesel', 'electric', 'hybrid'];
+    if (fuelType == null || !validFuelTypes.contains(fuelType)) {
+      errors['fuel_type'] = 'Please select a valid fuel type';
     }
     
     return errors;
@@ -1316,6 +1386,17 @@ class VehicleOwnerService {
       'tuk_tuk': 'Tuk Tuk',
     };
     return displayNames[vehicleType] ?? vehicleType;
+  }
+
+  // Helper method to get fuel type display name
+  static String getFuelTypeDisplayName(String fuelType) {
+    const displayNames = {
+      'petrol': 'Petrol',
+      'diesel': 'Diesel',
+      'electric': 'Electric',
+      'hybrid': 'Hybrid',
+    };
+    return displayNames[fuelType] ?? fuelType;
   }
 
   // Check if plate number is available
@@ -1339,10 +1420,26 @@ class VehicleOwnerService {
     }
   }
 
-  // Get your existing token method (placeholder)
-  static Future<String?> getToken() async {
-    // Your existing implementation
-    // This should return the stored auth token
-    return null; // Replace with your actual implementation
+  // Check if registration number is available
+  static Future<bool> isRegistrationNumberAvailable(String registrationNumber) async {
+    try {
+      final headers = await ApiService.getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/vehicles/check-registration/?registration_number=${registrationNumber.toUpperCase()}'),
+        headers: headers,
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['available'] ?? false;
+      }
+      
+      return false; // Assume not available if we can't check
+    } catch (e) {
+      print('Error checking registration availability: $e');
+      return false; // Assume not available on error
+    }
   }
+  
+
 }
