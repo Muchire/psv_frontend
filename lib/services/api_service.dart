@@ -31,27 +31,7 @@ class ApiService {
       if (token != null) 'Authorization': 'Token $token',
     };
   }
-  
-  // // Google Auth - FIXED
-  // static Future<Map<String, dynamic>> googleAuth({
-  //     required String idToken,
-  //   }) async {
-  //     final response = await http.post(
-  //       Uri.parse('$baseUrl/user/google-auth/'),
-  //       headers: {'Content-Type': 'application/json'},
-  //       body: jsonEncode({'id_token': idToken}),
-  //     );
-      
-  //     if (response.statusCode == 200) {
-  //       final data = jsonDecode(response.body);
-  //       if (data['token'] != null) {
-  //         await storeToken(data['token']);
-  //       }
-  //       return data;
-  //     } else {
-  //       throw Exception('Google authentication failed: ${response.body}');
-  //     }
-  //   }
+
   static Future<Map<String, dynamic>> googleAuthWithTokens({
     required Map<String, String> tokens,
   }) async {
@@ -588,4 +568,94 @@ class ApiService {
       return false;
     }
   }
+    // Send OTP to email for password reset
+  static Future<Map<String, dynamic>> sendPasswordResetOTP({
+    required String email,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/auth/password-reset/send-otp/'),
+        headers: await getHeaders(),
+        body: json.encode({
+          'email': email,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? data['message'] ?? 'Failed to send OTP');
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception:')) {
+        rethrow;
+      }
+      throw Exception('Network error. Please check your connection.');
+    }
+  }
+
+  // Verify the OTP
+  static Future<Map<String, dynamic>> verifyPasswordResetOTP({
+    required String email,
+    required String otp,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/auth/password-reset/verify-otp/'),
+        headers: await getHeaders(),
+        body: json.encode({
+          'email': email,
+          'otp': otp,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? data['message'] ?? 'Invalid OTP');
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception:')) {
+        rethrow;
+      }
+      throw Exception('Network error. Please check your connection.');
+    }
+  }
+
+  // Reset password with verified OTP
+  static Future<Map<String, dynamic>> resetPasswordWithOTP({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/auth/password-reset/confirm/'),
+        headers: await getHeaders(),
+        body: json.encode({
+          'email': email,
+          'otp': otp,
+          'new_password': newPassword,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200) {
+        return data;
+      } else {
+        throw Exception(data['error'] ?? data['message'] ?? 'Failed to reset password');
+      }
+    } catch (e) {
+      if (e.toString().contains('Exception:')) {
+        rethrow;
+      }
+      throw Exception('Network error. Please check your connection.');
+    }
+  }
+
 }

@@ -3,7 +3,6 @@ import '/services/vehicle_api_service.dart';
 import '../utils/constants.dart';
 import 'vehicle_detail_page.dart';
 
-
 class VehicleListPage extends StatefulWidget {
   const VehicleListPage({Key? key}) : super(key: key);
 
@@ -36,6 +35,13 @@ class _VehicleListPageState extends State<VehicleListPage> {
       setState(() {
         _vehicles = vehicles;
       });
+      
+      // Debug: Print the first vehicle to see the data structure
+      if (_vehicles.isNotEmpty) {
+        print('DEBUG: First vehicle data: ${_vehicles.first}');
+        print('DEBUG: Plate number value: ${_vehicles.first['plate_number']}');
+        print('DEBUG: Plate number type: ${_vehicles.first['plate_number'].runtimeType}');
+      }
     } catch (e) {
       _showErrorSnackBar('Failed to load vehicles: $e');
     } finally {
@@ -69,34 +75,42 @@ class _VehicleListPageState extends State<VehicleListPage> {
     if (_searchQuery.isEmpty) return _vehicles;
     
     return _vehicles.where((vehicle) {
+      // Debug: Print search data for each vehicle
+      print('DEBUG: Searching vehicle: ${vehicle['plate_number']} for query: $_searchQuery');
+      
       final plateNumber = vehicle['plate_number']?.toString().toLowerCase() ?? '';
+      final make = vehicle['make']?.toString().toLowerCase() ?? '';
+      final model = vehicle['model']?.toString().toLowerCase() ?? '';
       final query = _searchQuery.toLowerCase();
       
-      return plateNumber.contains(query);
+      // Search in plate number, make, and model
+      return plateNumber.contains(query) || 
+             make.contains(query) || 
+             model.contains(query);
     }).toList();
   }
 
-void _navigateToVehicleDetail(dynamic vehicle) async {
-  // Extract the vehicle ID from the vehicle object
-  final vehicleId = vehicle['id'];
-  
-  if (vehicleId == null) {
-    _showErrorSnackBar('Vehicle ID not found');
-    return;
+  void _navigateToVehicleDetail(dynamic vehicle) async {
+    // Extract the vehicle ID from the vehicle object
+    final vehicleId = vehicle['id'];
+    
+    if (vehicleId == null) {
+      _showErrorSnackBar('Vehicle ID not found');
+      return;
+    }
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => VehicleDetailPage(vehicleId: vehicleId),
+      ),
+    );
+    
+    // Optional: Refresh the list if the vehicle was updated
+    if (result == true) {
+      _refreshVehicles();
+    }
   }
-  
-  final result = await Navigator.push(
-    context,
-    MaterialPageRoute(
-      builder: (context) => VehicleDetailPage(vehicleId: vehicleId),
-    ),
-  );
-  
-  // Optional: Refresh the list if the vehicle was updated
-  if (result == true) {
-    _refreshVehicles();
-  }
-}
 
   void _showAddVehicleDialog() {
     showModalBottomSheet(
@@ -113,13 +127,14 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
   }
 
   void _showDeleteConfirmation(Map<String, dynamic> vehicle) {
+    final plateNumber = _getPlateNumber(vehicle);
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Vehicle'),
           content: Text(
-            'Are you sure you want to delete ${vehicle['plate_number']}? This action cannot be undone.',
+            'Are you sure you want to delete $plateNumber? This action cannot be undone.',
           ),
           actions: [
             TextButton(
@@ -150,6 +165,20 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
     }
   }
 
+  // Helper method to safely get plate number
+  String _getPlateNumber(Map<String, dynamic> vehicle) {
+    // Try different possible key names for plate number
+    final plateNumber = vehicle['plate_number'] ?? 
+                       vehicle['plateNumber'] ?? 
+                       vehicle['plate'] ?? 
+                       vehicle['numberPlate'] ?? 
+                       vehicle['registration_number'] ?? 
+                       vehicle['registrationNumber'] ?? 
+                       'Unknown';
+    
+    return plateNumber.toString();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -178,7 +207,7 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search by plate number...',
+                hintText: 'Search by plate number, make, or model...',
                 prefixIcon: const Icon(Icons.search, color: AppColors.grey),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
@@ -283,23 +312,51 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
     );
   }
 
-
-  // Also fix the vehicle card tap handler
+  // Updated _buildVehicleCard method with better debugging and fallback handling
   Widget _buildVehicleCard(Map<String, dynamic> vehicle) {
-    final plateNumber = vehicle['plate_number'] ?? 'Unknown';
-    final make = vehicle['make'] ?? '';
-    final model = vehicle['model'] ?? '';
+    // Use the helper method to get plate number with fallbacks
+    final plateNumber = _getPlateNumber(vehicle);
+    final make = vehicle['make']?.toString() ?? '';
+    final model = vehicle['model']?.toString() ?? '';
     final year = vehicle['year']?.toString() ?? '';
-    final vehicleType = vehicle['vehicle_type'] ?? '';
-    final color = vehicle['color'] ?? '';
-    final saccoName = vehicle['sacco_name'];
+    final vehicleType = vehicle['vehicle_type']?.toString() ?? '';
+    final color = vehicle['color']?.toString() ?? '';
+    final saccoName = vehicle['sacco_name']?.toString();
     final isActive = vehicle['is_active'] ?? false;
+
+    // Debug print to see what data we're getting
+    print('DEBUG: Building card for vehicle:');
+    print('  - Plate: $plateNumber');
+    print('  - Make: $make');
+    print('  - Model: $model');
+    print('  - Full vehicle data: $vehicle');
+
+    // Create the vehicle description
+    String vehicleDescription = '';
+    if (make.isNotEmpty && model.isNotEmpty) {
+      vehicleDescription = '$make $model';
+      if (year.isNotEmpty) {
+        vehicleDescription += ' ($year)';
+      }
+    } else if (make.isNotEmpty) {
+      vehicleDescription = make;
+      if (year.isNotEmpty) {
+        vehicleDescription += ' ($year)';
+      }
+    } else if (model.isNotEmpty) {
+      vehicleDescription = model;
+      if (year.isNotEmpty) {
+        vehicleDescription += ' ($year)';
+      }
+    } else {
+      vehicleDescription = 'Vehicle Details';
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
       elevation: 2,
       child: InkWell(
-        onTap: () => _navigateToVehicleDetail(vehicle), // Pass the whole vehicle object
+        onTap: () => _navigateToVehicleDetail(vehicle),
         borderRadius: BorderRadius.circular(8.0),
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -324,7 +381,7 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
                   ),
                   const SizedBox(width: 12),
                   
-                  // Vehicle Info
+                  // Vehicle Info - Show Plate Number as main title
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,7 +389,7 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
                         Row(
                           children: [
                             Text(
-                              plateNumber,
+                              plateNumber, // This should now show the correct plate number
                               style: AppTextStyles.heading3.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -358,12 +415,13 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
                             ),
                           ],
                         ),
-                        Text(
-                          '$make $model ${year.isNotEmpty ? '($year)' : ''}',
-                          style: AppTextStyles.body1.copyWith(
-                            color: AppColors.grey,
+                        if (vehicleDescription != 'Vehicle Details')
+                          Text(
+                            vehicleDescription, // Show make/model/year as subtitle
+                            style: AppTextStyles.body1.copyWith(
+                              color: AppColors.grey,
+                            ),
                           ),
-                        ),
                       ],
                     ),
                   ),
@@ -373,7 +431,6 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
                     onSelected: (value) {
                       switch (value) {
                         case 'edit':
-                          // Navigate to edit vehicle page or show edit dialog
                           _navigateToVehicleDetail(vehicle);
                           break;
                         case 'delete':
@@ -412,19 +469,22 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
               // Vehicle Details Row
               Row(
                 children: [
-                  _buildDetailChip(
-                    Icons.palette,
-                    color.isNotEmpty ? color : 'Unknown',
-                  ),
-                  const SizedBox(width: 8),
-                  _buildDetailChip(
-                    Icons.category,
-                    VehicleOwnerService.getVehicleTypeDisplayName(vehicleType),
-                  ),
+                  if (color.isNotEmpty)
+                    _buildDetailChip(
+                      Icons.palette,
+                      color,
+                    ),
+                  if (color.isNotEmpty && vehicleType.isNotEmpty)
+                    const SizedBox(width: 8),
+                  if (vehicleType.isNotEmpty)
+                    _buildDetailChip(
+                      Icons.category,
+                      VehicleOwnerService.getVehicleTypeDisplayName(vehicleType),
+                    ),
                 ],
               ),
               
-              if (saccoName != null) ...[
+              if (saccoName != null && saccoName.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -450,6 +510,7 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
       ),
     );
   }
+
   Widget _buildDetailChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
@@ -492,7 +553,7 @@ void _navigateToVehicleDetail(dynamic vehicle) async {
   }
 }
 
-// Add Vehicle Bottom Sheet
+// Add Vehicle Bottom Sheet (unchanged)
 class AddVehicleBottomSheet extends StatefulWidget {
   final VoidCallback onVehicleAdded;
 
@@ -871,31 +932,56 @@ class _AddVehicleBottomSheetState extends State<AddVehicleBottomSheet> {
                                 return 'Enter 0.01-1.0';
                               }
                               return null;
-                            },
+                                                          },
                           ),
                         ),
                       ],
                     ),
                     
-                    const SizedBox(height: 24),
-                    
-                    // Submit Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _submitForm,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.brown,
-                          foregroundColor: AppColors.white,
-                        ),
-                        child: _isLoading
-                            ? const CircularProgressIndicator(color: AppColors.white)
-                            : const Text('Add Vehicle'),
-                      ),
-                    ),
+                    const SizedBox(height: 32),
                   ],
                 ),
+              ),
+            ),
+          ),
+          
+          // Submit Button
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: const BoxDecoration(
+              color: AppColors.white,
+              border: Border(
+                top: BorderSide(color: AppColors.lightGrey),
+              ),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitForm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brown,
+                  foregroundColor: AppColors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Add Vehicle',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
               ),
             ),
           ),

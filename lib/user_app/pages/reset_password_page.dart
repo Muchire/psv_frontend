@@ -4,10 +4,9 @@ import '/services/api_service.dart';
 import 'login_page.dart';
 
 class ResetPasswordPage extends StatefulWidget {
-  final String? token;
-  final String? uid;
+  final String? email;
   
-  const ResetPasswordPage({super.key, this.token, this.uid});
+  const ResetPasswordPage({super.key, this.email});
 
   @override
   State<ResetPasswordPage> createState() => _ResetPasswordPageState();
@@ -15,71 +14,141 @@ class ResetPasswordPage extends StatefulWidget {
 
 class _ResetPasswordPageState extends State<ResetPasswordPage> {
   final _formKey = GlobalKey<FormState>();
-  final _tokenController = TextEditingController();
-  final _uidController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _otpController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  
   bool _isLoading = false;
-  bool _isValidatingToken = false;
-  bool _tokenValid = false;
+  bool _isSendingOTP = false;
+  bool _isVerifyingOTP = false;
+  bool _otpSent = false;
+  bool _otpVerified = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
-  String? _tokenError;
+  String? _otpError;
+  int _resendCountdown = 0;
 
   @override
   void initState() {
     super.initState();
-    if (widget.token != null) {
-      _tokenController.text = widget.token!;
-    }
-    if (widget.uid != null) {
-      _uidController.text = widget.uid!;
-    }
-    // Auto-validate if both token and uid are provided
-    if (widget.token != null && widget.uid != null) {
-      _validateToken();
+    if (widget.email != null) {
+      _emailController.text = widget.email!;
+      // If email is provided (coming from ForgotPasswordPage), OTP is already sent
+      _otpSent = true;
     }
   }
 
   @override
   void dispose() {
-    _tokenController.dispose();
-    _uidController.dispose();
+    _emailController.dispose();
+    _otpController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
   }
 
-  Future<void> _validateToken() async {
-    if (_tokenController.text.trim().isEmpty || _uidController.text.trim().isEmpty) return;
-    
+  Future<void> _sendOTP() async {
+    if (_emailController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter your email address'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
     setState(() {
-      _isValidatingToken = true;
-      _tokenError = null;
+      _isSendingOTP = true;
     });
 
     try {
-      await ApiService.validateResetToken(
-        token: _tokenController.text.trim(),
-        uid: _uidController.text.trim(),
+      await ApiService.sendPasswordResetOTP(
+        email: _emailController.text.trim(),
       );
       
       if (mounted) {
         setState(() {
-          _tokenValid = true;
+          _otpSent = true;
+          _resendCountdown = 60; // 60 seconds countdown
         });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OTP sent to your email!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        
+        _startResendCountdown();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingOTP = false;
+        });
+      }
+    }
+  }
+
+  void _startResendCountdown() {
+    Future.delayed(const Duration(seconds: 1), () {
+      if (mounted && _resendCountdown > 0) {
+        setState(() {
+          _resendCountdown--;
+        });
+        _startResendCountdown();
+      }
+    });
+  }
+
+  Future<void> _verifyOTP() async {
+    if (_otpController.text.trim().isEmpty) return;
+    
+    setState(() {
+      _isVerifyingOTP = true;
+      _otpError = null;
+    });
+
+    try {
+      await ApiService.verifyPasswordResetOTP(
+        email: _emailController.text.trim(),
+        otp: _otpController.text.trim(),
+      );
+      
+      if (mounted) {
+        setState(() {
+          _otpVerified = true;
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('OTP verified successfully!'),
+            backgroundColor: AppColors.success,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _tokenValid = false;
-          _tokenError = e.toString().replaceAll('Exception: ', '');
+          _otpVerified = false;
+          _otpError = e.toString().replaceAll('Exception: ', '');
         });
       }
     } finally {
       if (mounted) {
         setState(() {
-          _isValidatingToken = false;
+          _isVerifyingOTP = false;
         });
       }
     }
@@ -87,10 +156,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
 
   Future<void> _resetPassword() async {
     if (!_formKey.currentState!.validate()) return;
-    if (!_tokenValid) {
+    if (!_otpVerified) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter valid reset token and UID'),
+          content: Text('Please verify OTP first'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -102,9 +171,9 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     });
 
     try {
-      final response = await ApiService.confirmPasswordReset(
-        token: _tokenController.text.trim(),
-        uid: _uidController.text.trim(),
+      final response = await ApiService.resetPasswordWithOTP(
+        email: _emailController.text.trim(),
+        otp: _otpController.text.trim(),
         newPassword: _passwordController.text,
       );
 
@@ -209,7 +278,13 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   
                   // Description
                   Text(
-                    'Enter the reset token and UID from your email to create a new password.',
+                    _otpVerified
+                        ? 'OTP verified! Now create your new password.'
+                        : widget.email != null
+                            ? 'Enter the OTP sent to ${widget.email} and create your new password.'
+                            : !_otpSent 
+                                ? 'Enter your email address to receive an OTP for password reset.'
+                                : 'Enter the OTP sent to your email address.',
                     style: AppTextStyles.body1.copyWith(
                       color: AppColors.brown,
                     ),
@@ -225,175 +300,226 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                       key: _formKey,
                       child: Column(
                         children: [
-                          // UID field
-                          TextFormField(
-                            controller: _uidController,
-                            decoration: InputDecoration(
-                              labelText: 'User ID (UID)',
-                              prefixIcon: const Icon(Icons.person, color: AppColors.brown),
-                              border: const OutlineInputBorder(),
-                              helperText: 'Found in your reset email',
+                          // Email field (only show if no email provided)
+                          if (widget.email == null) ...[
+                            TextFormField(
+                              controller: _emailController,
+                              enabled: !_otpSent,
+                              decoration: InputDecoration(
+                                labelText: 'Email Address',
+                                prefixIcon: const Icon(Icons.email, color: AppColors.brown),
+                                border: const OutlineInputBorder(),
+                                filled: _otpSent,
+                                fillColor: _otpSent ? AppColors.grey.withOpacity(0.1) : null,
+                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter your email';
+                                }
+                                if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                                  return 'Please enter a valid email';
+                                }
+                                return null;
+                              },
                             ),
-                            onChanged: (value) {
-                              if (value.isNotEmpty && _tokenController.text.length >= 6) {
-                                _validateToken();
-                              } else {
-                                setState(() {
-                                  _tokenValid = false;
-                                  _tokenError = null;
-                                });
-                              }
-                            },
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter the UID';
-                              }
-                              return null;
-                            },
-                          ),
+                            
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                          ],
                           
-                          const SizedBox(height: AppDimensions.paddingMedium),
-                          
-                          // Token field
-                          TextFormField(
-                            controller: _tokenController,
-                            decoration: InputDecoration(
-                              labelText: 'Reset Token',
-                              prefixIcon: const Icon(Icons.vpn_key, color: AppColors.brown),
-                              suffixIcon: _isValidatingToken
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: Padding(
-                                        padding: EdgeInsets.all(12.0),
+                          // Send OTP button or OTP field
+                          if (!_otpSent) ...[
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isSendingOTP ? null : _sendOTP,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.carafe,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: _isSendingOTP
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
                                         child: CircularProgressIndicator(
-                                          color: AppColors.brown,
+                                          color: AppColors.white,
                                           strokeWidth: 2,
                                         ),
-                                      ),
-                                    )
-                                  : _tokenValid
-                                      ? const Icon(Icons.check_circle, color: AppColors.success)
-                                      : _tokenError != null
-                                          ? const Icon(Icons.error, color: AppColors.error)
-                                          : null,
-                              border: const OutlineInputBorder(),
-                              errorText: _tokenError,
-                              helperText: 'Found in your reset email',
-                            ),
-                            onChanged: (value) {
-                              if (value.length >= 6 && _uidController.text.isNotEmpty) {
-                                _validateToken();
-                              } else {
-                                setState(() {
-                                  _tokenValid = false;
-                                  _tokenError = null;
-                                });
-                              }
-                            },
-                            validator: (value) {
-                              if (value == null || value.trim().isEmpty) {
-                                return 'Please enter the reset token';
-                              }
-                              if (value.trim().length < 6) {
-                                return 'Token must be at least 6 characters';
-                              }
-                              return null;
-                            },
-                          ),
-                          
-                          const SizedBox(height: AppDimensions.paddingMedium),
-                          
-                          // New Password field
-                          TextFormField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            decoration: InputDecoration(
-                              labelText: 'New Password',
-                              prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                  color: AppColors.brown,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
+                                      )
+                                    : const Text('Send OTP', style: AppTextStyles.button),
                               ),
-                              border: const OutlineInputBorder(),
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please enter a new password';
-                              }
-                              if (value.length < 6) {
-                                return 'Password must be at least 6 characters';
-                              }
-                              return null;
-                            },
-                          ),
-                          
-                          const SizedBox(height: AppDimensions.paddingMedium),
-                          
-                          // Confirm Password field
-                          TextFormField(
-                            controller: _confirmPasswordController,
-                            obscureText: _obscureConfirmPassword,
-                            decoration: InputDecoration(
-                              labelText: 'Confirm New Password',
-                              prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
-                                  color: AppColors.brown,
-                                ),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscureConfirmPassword = !_obscureConfirmPassword;
-                                  });
-                                },
+                          ] else ...[
+                            // OTP field
+                            TextFormField(
+                              controller: _otpController,
+                              enabled: !_otpVerified,
+                              decoration: InputDecoration(
+                                labelText: 'Enter OTP',
+                                prefixIcon: const Icon(Icons.vpn_key, color: AppColors.brown),
+                                suffixIcon: _isVerifyingOTP
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: Padding(
+                                          padding: EdgeInsets.all(12.0),
+                                          child: CircularProgressIndicator(
+                                            color: AppColors.brown,
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    : _otpVerified
+                                        ? const Icon(Icons.check_circle, color: AppColors.success)
+                                        : _otpError != null
+                                            ? const Icon(Icons.error, color: AppColors.error)
+                                            : null,
+                                border: const OutlineInputBorder(),
+                                errorText: _otpError,
+                                filled: _otpVerified,
+                                fillColor: _otpVerified ? AppColors.success.withOpacity(0.1) : null,
                               ),
-                              border: const OutlineInputBorder(),
+                              keyboardType: TextInputType.number,
+                              maxLength: 6,
+                              onChanged: (value) {
+                                if (value.length == 6 && !_otpVerified) {
+                                  _verifyOTP();
+                                }
+                              },
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Please enter the OTP';
+                                }
+                                if (value.trim().length != 6) {
+                                  return 'OTP must be 6 digits';
+                                }
+                                return null;
+                              },
                             ),
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Please confirm your new password';
-                              }
-                              if (value != _passwordController.text) {
-                                return 'Passwords do not match';
-                              }
-                              return null;
-                            },
-                          ),
-                          
-                          const SizedBox(height: AppDimensions.paddingLarge),
-                          
-                          // Reset Password button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: (_isLoading || !_tokenValid) ? null : _resetPassword,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.carafe,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                            
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                            
+                            // New Password field (show alongside OTP)
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'New Password',
+                                prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                    color: AppColors.brown,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
                                 ),
+                                border: const OutlineInputBorder(),
                               ),
-                              child: _isLoading
-                                  ? const SizedBox(
-                                      height: 20,
-                                      width: 20,
-                                      child: CircularProgressIndicator(
-                                        color: AppColors.white,
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Text('Reset Password', style: AppTextStyles.button),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter a new password';
+                                }
+                                if (value.length < 6) {
+                                  return 'Password must be at least 6 characters';
+                                }
+                                return null;
+                              },
                             ),
-                          ),
+                            
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                            
+                            // Confirm Password field
+                            TextFormField(
+                              controller: _confirmPasswordController,
+                              obscureText: _obscureConfirmPassword,
+                              decoration: InputDecoration(
+                                labelText: 'Confirm New Password',
+                                prefixIcon: const Icon(Icons.lock, color: AppColors.brown),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                                    color: AppColors.brown,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscureConfirmPassword = !_obscureConfirmPassword;
+                                    });
+                                  },
+                                ),
+                                border: const OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please confirm your new password';
+                                }
+                                if (value != _passwordController.text) {
+                                  return 'Passwords do not match';
+                                }
+                                return null;
+                              },
+                            ),
+                            
+                            const SizedBox(height: AppDimensions.paddingLarge),
+                            
+                            // Reset Password button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _resetPassword,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.carafe,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                child: _isLoading
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: AppColors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text('Reset Password', style: AppTextStyles.button),
+                              ),
+                            ),
+                            
+                            const SizedBox(height: AppDimensions.paddingMedium),
+                            
+                            // Resend OTP button
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  "Didn't receive OTP? ",
+                                  style: AppTextStyles.body2.copyWith(color: AppColors.grey),
+                                ),
+                                TextButton(
+                                  onPressed: _resendCountdown > 0 ? null : _sendOTP,
+                                  child: Text(
+                                    _resendCountdown > 0 
+                                        ? 'Resend in ${_resendCountdown}s'
+                                        : 'Resend OTP',
+                                    style: AppTextStyles.body2.copyWith(
+                                      color: _resendCountdown > 0 
+                                          ? AppColors.grey 
+                                          : AppColors.brown,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
@@ -403,7 +529,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                   
                   // Help text
                   Text(
-                    'Check your email for both the reset token and UID. Both are required to reset your password.',
+                    'Check your email for the 6-digit OTP code.',
                     style: AppTextStyles.body2.copyWith(
                       color: AppColors.grey,
                     ),
