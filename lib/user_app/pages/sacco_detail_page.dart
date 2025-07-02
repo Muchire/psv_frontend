@@ -385,7 +385,7 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                     children: [
                       Icon(Icons.access_time, size: 16, color: AppColors.grey),
                       const SizedBox(width: 4),
-                      Text('${route['duration']} minutes', style: AppTextStyles.caption),
+                      Text('${route['duration']} hours', style: AppTextStyles.caption),
                     ],
                   ),
                 ],

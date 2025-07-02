@@ -6,6 +6,7 @@ import 'sacco_admin_request_page.dart';
 import 'sacco_admin_dashboard.dart';
 import 'vehicle_owner_dashboard.dart';
 import 'vehicle_registration.dart';
+import 'home_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -38,12 +39,12 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       final profile = await ApiService.getUserProfile();
       print('Profile loaded: $profile'); // Debug print
-      
+
       if (mounted) {
         setState(() {
           _userProfile = profile;
         });
-        
+
         // Ensure user has a current_role set
         await _ensureUserRole();
       }
@@ -62,17 +63,14 @@ class _ProfilePageState extends State<ProfilePage> {
   // Ensure user has a valid current_role
   Future<void> _ensureUserRole() async {
     if (_userProfile == null) return;
-    
+
     final currentRole = _userProfile?['current_role'];
-    print('DEBUG: Current role from profile: $currentRole');
-    
+
     // If no current role is set, default to passenger
     if (currentRole == null || currentRole.isEmpty) {
-      print('DEBUG: No current role found, setting to passenger');
       try {
         await _switchUserMode('passenger', showSuccess: false);
       } catch (e) {
-        print('DEBUG: Failed to set default passenger role: $e');
         // If switching fails, manually set it in local state
         if (mounted) {
           setState(() {
@@ -85,7 +83,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _loadUserReviews() async {
     if (!mounted) return;
-    
+
     setState(() => _isLoadingReviews = true);
     try {
       final reviews = await ApiService.getUserReviews(limit: 3);
@@ -105,11 +103,10 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _switchUserMode(String mode, {bool showSuccess = true}) async {
     if (!mounted) return;
-    
+
     setState(() => _isSwitchingMode = true);
     try {
       final response = await ApiService.switchUserMode(mode);
-      print('Switch mode response: $response'); // Debug print
 
       if (!mounted) return;
 
@@ -131,7 +128,6 @@ class _ProfilePageState extends State<ProfilePage> {
         await _navigateBasedOnRole(mode);
       }
     } catch (e) {
-      print('Switch mode error: $e'); // Debug print
       if (mounted) {
         if (showSuccess) {
           _showErrorSnackBar('Failed to switch mode: $e');
@@ -146,26 +142,55 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _navigateBasedOnRole(String mode) async {
     if (!mounted) return;
-    
+
     switch (mode) {
       case 'vehicle_owner':
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => VehicleOwnerDashboard(),
-          ),
+          MaterialPageRoute(builder: (context) => VehicleOwnerDashboard()),
         );
         break;
       case 'sacco_admin':
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const SaccoAdminDashboard(),
-          ),
+          MaterialPageRoute(builder: (context) => const SaccoAdminDashboard()),
         );
         break;
       case 'passenger':
         // Stay on profile page for passenger role
+        break;
+    }
+  }
+
+  // Navigate to home page based on user's current role
+  void _navigateToHome() {
+    final currentRole = _userProfile?['current_role'] ?? 'passenger';
+
+    switch (currentRole) {
+      case 'vehicle_owner':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => VehicleOwnerDashboard()),
+        );
+        break;
+      case 'sacco_admin':
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const SaccoAdminDashboard()),
+        );
+        break;
+      case 'passenger':
+      default:
+        // Navigate to passenger home/dashboard
+        // Replace 'PassengerDashboard()' with your actual passenger home page
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder:
+                (context) =>
+                    const HomePage(), // Temporary - replace with actual passenger dashboard
+          ),
+        );
         break;
     }
   }
@@ -180,22 +205,22 @@ class _ProfilePageState extends State<ProfilePage> {
           onRegistrationSuccess: (response) {
             // First close the dialog
             Navigator.of(context).pop();
-            
+
             // Update the user profile to reflect the new vehicle owner status
             setState(() {
               _userProfile!['is_vehicle_owner'] = true;
               _userProfile!['current_role'] = 'vehicle_owner';
             });
-            
+
             // Show success message
-            _showSuccessSnackBar('Vehicle registered successfully! Welcome to Vehicle Owner dashboard.');
-            
+            _showSuccessSnackBar(
+              'Vehicle registered successfully! Welcome to Vehicle Owner dashboard.',
+            );
+
             // Navigate to vehicle owner dashboard using pushReplacement to replace current screen
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => VehicleOwnerDashboard(),
-              ),
+              MaterialPageRoute(builder: (context) => VehicleOwnerDashboard()),
             );
           },
         );
@@ -365,17 +390,19 @@ class _ProfilePageState extends State<ProfilePage> {
                   if (mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const WelcomePage()),
+                      MaterialPageRoute(
+                        builder: (context) => const WelcomePage(),
+                      ),
                       (route) => false,
                     );
                   }
                 } catch (e) {
-                  print('Logout error: $e');
-                  // Even if logout fails, navigate to welcome page
                   if (mounted) {
                     Navigator.pushAndRemoveUntil(
                       context,
-                      MaterialPageRoute(builder: (context) => const WelcomePage()),
+                      MaterialPageRoute(
+                        builder: (context) => const WelcomePage(),
+                      ),
                       (route) => false,
                     );
                   }
@@ -413,7 +440,8 @@ class _ProfilePageState extends State<ProfilePage> {
     List<String> availableRoles = [];
 
     // Always include passenger
-    if (_userProfile!['is_passenger'] == true || _userProfile!['is_passenger'] == null) {
+    if (_userProfile!['is_passenger'] == true ||
+        _userProfile!['is_passenger'] == null) {
       availableRoles.add('passenger');
     }
 
@@ -443,10 +471,10 @@ class _ProfilePageState extends State<ProfilePage> {
   // Check if user should see sacco admin request option
   bool _shouldShowSaccoAdminRequest() {
     if (_userProfile == null) return false;
-    
+
     final isSaccoAdmin = _userProfile!['is_sacco_admin'] == true;
     final isVehicleOwner = _userProfile!['is_vehicle_owner'] == true;
-    
+
     // Show request only if user is not already a sacco admin and not a vehicle owner
     return !isSaccoAdmin && !isVehicleOwner;
   }
@@ -502,6 +530,9 @@ class _ProfilePageState extends State<ProfilePage> {
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
+                case 'home':
+                  _navigateToHome();
+                  break;
                 case 'edit':
                   _updateProfile();
                   break;
@@ -513,55 +544,67 @@ class _ProfilePageState extends State<ProfilePage> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit, color: AppColors.brown),
-                    SizedBox(width: 8),
-                    Text('Edit Profile'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'password',
-                child: Row(
-                  children: [
-                    Icon(Icons.lock, color: AppColors.brown),
-                    SizedBox(width: 8),
-                    Text('Change Password'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'logout',
-                child: Row(
-                  children: [
-                    Icon(Icons.logout, color: AppColors.error),
-                    SizedBox(width: 8),
-                    Text('Logout'),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (context) => [
+                  const PopupMenuItem(
+                    value: 'home',
+                    child: Row(
+                      children: [
+                        Icon(Icons.home, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Home'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Edit Profile'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'password',
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Change Password'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'logout',
+                    child: Row(
+                      children: [
+                        Icon(Icons.logout, color: AppColors.brown),
+                        SizedBox(width: 8),
+                        Text('Logout'),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildProfileHeader(),
-                  _buildRoleSwitchingSection(),
-                  _buildUserModeSection(),
-                  _buildStatsSection(),
-                  _buildRecentReviewsSection(),
-                  _buildSettingsSection(),
-                ],
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : SingleChildScrollView(
+                child: Column(
+                  children: [
+                    _buildProfileHeader(),
+                    _buildRoleSwitchingSection(),
+                    _buildUserModeSection(),
+                    _buildStatsSection(),
+                    _buildRecentReviewsSection(),
+                    _buildSettingsSection(),
+                  ],
+                ),
               ),
-            ),
     );
   }
 
@@ -569,9 +612,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final firstName = _userProfile?['first_name'] ?? '';
     final lastName = _userProfile?['last_name'] ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final displayName = fullName.isNotEmpty
-        ? fullName
-        : _userProfile?['username'] ?? 'Unknown User';
+    final displayName =
+        fullName.isNotEmpty
+            ? fullName
+            : _userProfile?['username'] ?? 'Unknown User';
 
     final currentRole = _userProfile?['current_role'] ?? 'passenger';
 
@@ -590,8 +634,8 @@ class _ProfilePageState extends State<ProfilePage> {
             radius: 50,
             backgroundColor: AppColors.brown,
             child: Text(
-              displayName.isNotEmpty 
-                  ? displayName.substring(0, 1).toUpperCase() 
+              displayName.isNotEmpty
+                  ? displayName.substring(0, 1).toUpperCase()
                   : 'U',
               style: AppTextStyles.heading1.copyWith(
                 fontSize: 32,
@@ -610,7 +654,7 @@ class _ProfilePageState extends State<ProfilePage> {
             Text(_userProfile!['phone_number'], style: AppTextStyles.body2),
           ],
           const SizedBox(height: AppDimensions.paddingSmall),
-          
+
           // Current Role Display
           Container(
             padding: const EdgeInsets.symmetric(
@@ -655,7 +699,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildRoleSwitchingSection() {
     final availableRoles = _getAllAvailableRoles();
     final currentRole = _userProfile?['current_role'] ?? 'passenger';
-    
+
     // Only show if user has multiple roles
     if (availableRoles.length <= 1) return const SizedBox.shrink();
 
@@ -666,91 +710,85 @@ class _ProfilePageState extends State<ProfilePage> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Switch Role',
-            style: AppTextStyles.heading2,
-          ),
+          Text('Switch Role', style: AppTextStyles.heading2),
           const SizedBox(height: AppDimensions.paddingSmall),
           Text(
             'Choose which role you want to use',
             style: AppTextStyles.body2.copyWith(color: Colors.grey[600]),
           ),
           const SizedBox(height: AppDimensions.paddingMedium),
-          
+
           // Role buttons
           Wrap(
             spacing: AppDimensions.paddingSmall,
             runSpacing: AppDimensions.paddingSmall,
-            children: availableRoles.map((role) {
-              final isCurrentRole = role == currentRole;
-              final roleColor = _getRoleColor(role);
-              
-              return SizedBox(
-                width: (MediaQuery.of(context).size.width - 80) / 2, // Half width minus margins
-                child: ElevatedButton(
-                  onPressed: _isSwitchingMode 
-                      ? null 
-                      : isCurrentRole 
-                          ? null 
-                          : () => _handleRoleSwitch(role),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isCurrentRole 
-                        ? Colors.grey[300] 
-                        : roleColor,
-                    foregroundColor: isCurrentRole 
-                        ? Colors.grey[600] 
-                        : AppColors.white,
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppDimensions.paddingMedium,
-                      horizontal: AppDimensions.paddingSmall,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        _getRoleIcon(role),
-                        size: 24,
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _getRoleDisplayName(role),
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+            children:
+                availableRoles.map((role) {
+                  final isCurrentRole = role == currentRole;
+                  final roleColor = _getRoleColor(role);
+
+                  return SizedBox(
+                    width:
+                        (MediaQuery.of(context).size.width - 80) /
+                        2, // Half width minus margins
+                    child: ElevatedButton(
+                      onPressed:
+                          _isSwitchingMode
+                              ? null
+                              : isCurrentRole
+                              ? null
+                              : () => _handleRoleSwitch(role),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            isCurrentRole ? Colors.grey[300] : roleColor,
+                        foregroundColor:
+                            isCurrentRole ? Colors.grey[600] : AppColors.white,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppDimensions.paddingMedium,
+                          horizontal: AppDimensions.paddingSmall,
                         ),
-                        textAlign: TextAlign.center,
-                      ),
-                      if (isCurrentRole) ...[
-                        const SizedBox(height: 2),
-                        const Text(
-                          'Current',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.brown,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusMedium,
                           ),
                         ),
-                      ],
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_getRoleIcon(role), size: 24),
+                          const SizedBox(height: 4),
+                          Text(
+                            _getRoleDisplayName(role),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                          if (isCurrentRole) ...[
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Current',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.brown,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
           ),
-          
+
           if (_isSwitchingMode) ...[
             const SizedBox(height: AppDimensions.paddingMedium),
             const Center(
@@ -785,35 +823,29 @@ class _ProfilePageState extends State<ProfilePage> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Account Access',
-            style: AppTextStyles.heading2,
-          ),
+          Text('Account Access', style: AppTextStyles.heading2),
           const SizedBox(height: AppDimensions.paddingMedium),
-          
+
           // Vehicle Owner Request/Registration
           if (_shouldShowVehicleOwnerRequest()) ...[
             _buildActionCard(
               icon: Icons.directions_car,
               title: 'Become a Vehicle Owner',
-              subtitle: 'Register your vehicle and start offering transport services',
+              subtitle:
+                  'Register your vehicle and start offering transport services',
               buttonText: 'Register Vehicle',
               onTap: _showVehicleRegistrationDialog,
               color: AppColors.brown,
             ),
             const SizedBox(height: AppDimensions.paddingSmall),
           ],
-          
+
           // SACCO Admin Request
           if (_shouldShowSaccoAdminRequest()) ...[
             _buildActionCard(
@@ -834,7 +866,8 @@ class _ProfilePageState extends State<ProfilePage> {
           ],
 
           // If user can't access any new roles, show info
-          if (!_shouldShowVehicleOwnerRequest() && !_shouldShowSaccoAdminRequest()) ...[
+          if (!_shouldShowVehicleOwnerRequest() &&
+              !_shouldShowSaccoAdminRequest()) ...[
             Container(
               padding: const EdgeInsets.all(AppDimensions.paddingMedium),
               decoration: BoxDecoration(
@@ -871,7 +904,7 @@ class _ProfilePageState extends State<ProfilePage> {
     return Container(
       padding: const EdgeInsets.all(AppDimensions.paddingMedium),
       decoration: BoxDecoration(
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color),
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
       ),
       child: Row(
@@ -879,7 +912,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(AppDimensions.paddingSmall),
             decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
+              color: color,
               borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
             ),
             child: Icon(icon, color: color, size: 24),
@@ -915,11 +948,7 @@ class _ProfilePageState extends State<ProfilePage> {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -936,18 +965,20 @@ class _ProfilePageState extends State<ProfilePage> {
                   Icons.route,
                 ),
               ),
-              Expanded(
-                child: _buildStatItem(
-                  'Rating',
-                  _userProfile?['average_rating']?.toStringAsFixed(1) ?? '0.0',
-                  Icons.star,
-                ),
-              ),
+              const SizedBox(width: AppDimensions.paddingSmall),
               Expanded(
                 child: _buildStatItem(
                   'Reviews',
                   _userProfile?['total_reviews']?.toString() ?? '0',
-                  Icons.rate_review,
+                  Icons.star,
+                ),
+              ),
+              const SizedBox(width: AppDimensions.paddingSmall),
+              Expanded(
+                child: _buildStatItem(
+                  'Rating',
+                  _userProfile?['average_rating']?.toStringAsFixed(1) ?? '0.0',
+                  Icons.thumb_up,
                 ),
               ),
             ],
@@ -959,22 +990,30 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildStatItem(String label, String value, IconData icon) {
     return Container(
-      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+      ),
       child: Column(
         children: [
-          Icon(icon, color: AppColors.brown, size: 24),
-          const SizedBox(height: 4),
+          Icon(icon, color: AppColors.brown, size: 28),
+          const SizedBox(height: AppDimensions.paddingSmall),
           Text(
             value,
             style: AppTextStyles.heading2.copyWith(color: AppColors.brown),
           ),
-          Text(label, style: AppTextStyles.caption),
+          Text(
+            label,
+            style: AppTextStyles.caption,
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
   }
 
-Widget _buildRecentReviewsSection() {
+  Widget _buildRecentReviewsSection() {
     return Container(
       margin: const EdgeInsets.all(AppDimensions.paddingMedium),
       padding: const EdgeInsets.all(AppDimensions.paddingMedium),
@@ -982,11 +1021,7 @@ Widget _buildRecentReviewsSection() {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -1007,7 +1042,7 @@ Widget _buildRecentReviewsSection() {
             ],
           ),
           const SizedBox(height: AppDimensions.paddingMedium),
-          
+
           if (_isLoadingReviews)
             const Center(child: CircularProgressIndicator())
           else if (_userReviews.isEmpty)
@@ -1015,11 +1050,7 @@ Widget _buildRecentReviewsSection() {
               padding: const EdgeInsets.all(AppDimensions.paddingLarge),
               child: Column(
                 children: [
-                  Icon(
-                    Icons.rate_review_outlined,
-                    size: 48,
-                    color: Colors.grey[400],
-                  ),
+                  Icon(Icons.star_border, size: 48, color: Colors.grey[400]),
                   const SizedBox(height: AppDimensions.paddingSmall),
                   Text(
                     'No reviews yet',
@@ -1028,22 +1059,18 @@ Widget _buildRecentReviewsSection() {
                     ),
                   ),
                   Text(
-                    'Complete some trips to receive reviews',
+                    'Complete trips to receive reviews',
                     style: AppTextStyles.caption,
                   ),
                 ],
               ),
             )
           else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _userReviews.length,
-              separatorBuilder: (context, index) => const Divider(),
-              itemBuilder: (context, index) {
-                final review = _userReviews[index];
-                return _buildReviewItem(review);
-              },
+            Column(
+              children:
+                  _userReviews
+                      .map((review) => _buildReviewItem(review))
+                      .toList(),
             ),
         ],
       ),
@@ -1051,72 +1078,73 @@ Widget _buildRecentReviewsSection() {
   }
 
   Widget _buildReviewItem(Map<String, dynamic> review) {
-    final rating = review['rating']?.toDouble() ?? 0.0;
-    final comment = review['comment'] ?? '';
-    final reviewerName = review['reviewer_name'] ?? 'Anonymous';
-    final createdAt = review['created_at'] ?? '';
-    
-    // Parse date if available
-    DateTime? reviewDate;
-    if (createdAt.isNotEmpty) {
-      try {
-        reviewDate = DateTime.parse(createdAt);
-      } catch (e) {
-        // Handle date parsing error
-      }
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimensions.paddingSmall),
+    return Container(
+      margin: const EdgeInsets.only(bottom: AppDimensions.paddingSmall),
+      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+      decoration: BoxDecoration(
+        color: AppColors.lightGrey,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: AppColors.brown,
                 child: Text(
-                  reviewerName,
-                  style: AppTextStyles.body1.copyWith(
-                    fontWeight: FontWeight.w600,
+                  (review['reviewer_name'] ?? 'U')
+                      .substring(0, 1)
+                      .toUpperCase(),
+                  style: const TextStyle(
+                    color: AppColors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
-              Row(
-                children: [
-                  ...List.generate(5, (starIndex) {
-                    return Icon(
-                      starIndex < rating ? Icons.star : Icons.star_border,
-                      color: Colors.amber,
-                      size: 16,
-                    );
-                  }),
-                  const SizedBox(width: 4),
-                  Text(
-                    rating.toStringAsFixed(1),
-                    style: AppTextStyles.caption,
-                  ),
-                ],
+              const SizedBox(width: AppDimensions.paddingSmall),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      review['reviewer_name'] ?? 'Anonymous',
+                      style: AppTextStyles.body1.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Row(
+                      children: [
+                        ...List.generate(5, (index) {
+                          return Icon(
+                            index < (review['rating'] ?? 0)
+                                ? Icons.star
+                                : Icons.star_border,
+                            color: Colors.amber,
+                            size: 16,
+                          );
+                        }),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${review['rating'] ?? 0}/5',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                _formatDate(review['created_at']),
+                style: AppTextStyles.caption,
               ),
             ],
           ),
-          if (comment.isNotEmpty) ...[
+          if (review['comment'] != null && review['comment'].isNotEmpty) ...[
             const SizedBox(height: AppDimensions.paddingSmall),
-            Text(
-              comment,
-              style: AppTextStyles.body2,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-          if (reviewDate != null) ...[
-            const SizedBox(height: AppDimensions.paddingSmall),
-            Text(
-              '${reviewDate.day}/${reviewDate.month}/${reviewDate.year}',
-              style: AppTextStyles.caption.copyWith(
-                color: Colors.grey[500],
-              ),
-            ),
+            Text(review['comment'], style: AppTextStyles.body2),
           ],
         ],
       ),
@@ -1131,74 +1159,63 @@ Widget _buildRecentReviewsSection() {
         color: AppColors.white,
         borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
         boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
-            offset: Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Account Settings', style: AppTextStyles.heading2),
+          Text('Settings', style: AppTextStyles.heading2),
           const SizedBox(height: AppDimensions.paddingMedium),
-          
+
           _buildSettingsItem(
-            icon: Icons.person_outline,
+            icon: Icons.edit,
             title: 'Edit Profile',
             subtitle: 'Update your personal information',
             onTap: _updateProfile,
           ),
-          
+
           _buildSettingsItem(
-            icon: Icons.lock_outline,
+            icon: Icons.lock,
             title: 'Change Password',
             subtitle: 'Update your account password',
             onTap: _changePassword,
           ),
-          
+
           _buildSettingsItem(
-            icon: Icons.notifications_outlined,
+            icon: Icons.notifications,
             title: 'Notifications',
             subtitle: 'Manage your notification preferences',
             onTap: () {
               // Navigate to notifications settings
-              _showComingSoonDialog('Notification Settings');
+              // You can implement this later
+              _showInfoSnackBar('Notifications settings coming soon!');
             },
           ),
-          
+
           _buildSettingsItem(
-            icon: Icons.privacy_tip_outlined,
-            title: 'Privacy Settings',
-            subtitle: 'Control your privacy and data settings',
-            onTap: () {
-              // Navigate to privacy settings
-              _showComingSoonDialog('Privacy Settings');
-            },
-          ),
-          
-          _buildSettingsItem(
-            icon: Icons.help_outline,
+            icon: Icons.help,
             title: 'Help & Support',
-            subtitle: 'Get help or contact support',
+            subtitle: 'Get help and contact support',
             onTap: () {
               // Navigate to help & support
-              _showComingSoonDialog('Help & Support');
+              // You can implement this later
+              _showInfoSnackBar('Help & Support coming soon!');
             },
           ),
-          
+
           _buildSettingsItem(
-            icon: Icons.info_outline,
+            icon: Icons.info,
             title: 'About',
             subtitle: 'App version and information',
             onTap: () {
+              // Show about dialog
               _showAboutDialog();
             },
           ),
-          
-          const Divider(height: 32),
-          
+
+          const Divider(),
+
           _buildSettingsItem(
             icon: Icons.logout,
             title: 'Logout',
@@ -1218,69 +1235,61 @@ Widget _buildRecentReviewsSection() {
     required VoidCallback onTap,
     bool isDestructive = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppDimensions.paddingSmall,
-          horizontal: AppDimensions.paddingSmall,
+    return ListTile(
+      leading: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isDestructive ? AppColors.error : AppColors.brown,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
         ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(AppDimensions.paddingSmall),
-              decoration: BoxDecoration(
-                color: isDestructive 
-                    ? AppColors.error.withOpacity(0.1)
-                    : AppColors.brown.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusSmall),
-              ),
-              child: Icon(
-                icon,
-                color: isDestructive ? AppColors.error : AppColors.brown,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: AppDimensions.paddingMedium),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.body1.copyWith(
-                      fontWeight: FontWeight.w500,
-                      color: isDestructive ? AppColors.error : null,
-                    ),
-                  ),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.caption.copyWith(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-              size: 20,
-            ),
-          ],
+        child: Icon(
+          icon,
+          color: isDestructive ? AppColors.error : AppColors.brown,
+          size: 20,
         ),
       ),
+      title: Text(
+        title,
+        style: AppTextStyles.body1.copyWith(
+          color: isDestructive ? AppColors.error : null,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      subtitle: Text(subtitle, style: AppTextStyles.caption),
+      trailing: Icon(
+        Icons.chevron_right,
+        color: isDestructive ? AppColors.error : Colors.grey[400],
+      ),
+      onTap: onTap,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
     );
   }
 
-  void _showComingSoonDialog(String feature) {
+  void _showInfoSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: AppColors.brown),
+      );
+    }
+  }
+
+  void _showAboutDialog() {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text(feature),
-          content: Text('$feature will be available in a future update.'),
+          title: const Text('About'),
+          content: const Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Transport App'),
+              SizedBox(height: 8),
+              Text('Version: 1.0.0'),
+              SizedBox(height: 8),
+              Text('Developed for SACCO management and passenger services.'),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -1292,25 +1301,24 @@ Widget _buildRecentReviewsSection() {
     );
   }
 
-  void _showAboutDialog() {
-    showAboutDialog(
-      context: context,
-      applicationName: 'Transport App',
-      applicationVersion: '1.0.0',
-      applicationIcon: const Icon(
-        Icons.directions_bus,
-        size: 48,
-        color: AppColors.brown,
-      ),
-      children: [
-        const Text(
-          'A comprehensive transport management system for passengers, vehicle owners, and SACCO administrators.',
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Features include trip booking, vehicle management, and admin controls.',
-        ),
-      ],
-    );
+  String _formatDate(String? dateString) {
+    if (dateString == null) return '';
+    try {
+      final date = DateTime.parse(dateString);
+      final now = DateTime.now();
+      final difference = now.difference(date);
+
+      if (difference.inDays > 0) {
+        return '${difference.inDays}d ago';
+      } else if (difference.inHours > 0) {
+        return '${difference.inHours}h ago';
+      } else if (difference.inMinutes > 0) {
+        return '${difference.inMinutes}m ago';
+      } else {
+        return 'Just now';
+      }
+    } catch (e) {
+      return '';
+    }
   }
 }

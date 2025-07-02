@@ -456,13 +456,10 @@ class _SaccoReviewsPageState extends State<SaccoReviewsPage>
     );
   }
 
-  // FIXED: Better handling of user data with proper type checking
   Widget _buildReviewCard(Map<String, dynamic> review, String type) {
-    // Safe extraction of user name with proper type checking
     String userName = 'Anonymous';
     
     try {
-      // Try different possible field names and structures
       if (review['user_name'] != null) {
         userName = review['user_name'].toString();
       } else if (review['username'] != null) {

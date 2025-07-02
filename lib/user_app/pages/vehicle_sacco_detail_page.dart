@@ -31,7 +31,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this); // Changed from 4 to 3 tabs
+    _tabController = TabController(length: 3, vsync: this);
     _loadSaccoDetails();
     _loadOwnerReviews();
     
@@ -77,22 +77,60 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
   Future<void> _loadOwnerReviews() async {
     setState(() => _isLoadingReviews = true);
     try {
-      final reviews = await VehicleOwnerService.getOwnerReviews();
-      final saccoReviews = reviews['results']
-              ?.where(
-                (review) =>
-                    review['sacco_id'] == widget.saccoId ||
-                    review['sacco']['id'] == widget.saccoId,
-              )
-              .toList() ??
-          [];
+      // If reviews are already loaded from sacco details, use them
+      if (_fullSaccoResponse != null && _fullSaccoResponse!['recent_reviews'] != null) {
+        setState(() {
+          _reviews = List.from(_fullSaccoResponse!['recent_reviews']);
+          _isLoadingReviews = false;
+        });
+        return;
+      }
+
+      // Otherwise, fetch from the reviews API
+      final reviewsData = await VehicleOwnerService.getOwnerReviews();
+      print('Reviews API Response: $reviewsData'); // Debug print
+      
+      List<dynamic> allReviews = [];
+      
+      // Check if the response has sacco_reviews
+      if (reviewsData.containsKey('sacco_reviews')) {
+        allReviews = reviewsData['sacco_reviews'] ?? [];
+      } 
+      // Fallback to check for 'results' key
+      else if (reviewsData.containsKey('results')) {
+        allReviews = reviewsData['results'] ?? [];
+      }
+      // If it's a direct list
+      else if (reviewsData is List) {
+        allReviews = reviewsData as List;
+      }
+
+      print('All reviews count: ${allReviews.length}'); // Debug print
+      
+      // Filter reviews for this specific sacco
+      final saccoReviews = allReviews.where((review) {
+        // Check different possible field names for sacco ID
+        final reviewSaccoId = review['sacco_id'] ?? 
+                            review['saccoId'] ?? 
+                            review['saccoid'] ??
+                            (review['sacco'] != null ? review['sacco']['id'] : null);
+        
+        print('Review sacco ID: $reviewSaccoId, Target sacco ID: ${widget.saccoId}'); // Debug print
+        
+        return reviewSaccoId == widget.saccoId || 
+              reviewSaccoId == widget.saccoId.toString();
+      }).toList();
+
+      print('Filtered sacco reviews count: ${saccoReviews.length}'); // Debug print
+
       setState(() {
-        _reviews.addAll(saccoReviews);
+        _reviews = List.from(saccoReviews);
         _isLoadingReviews = false;
       });
     } catch (e) {
+      print('Error loading reviews: $e'); // Debug print
       setState(() => _isLoadingReviews = false);
-      _showErrorSnackBar('Failed to load additional reviews: $e');
+      // _showErrorSnackBar('Failed to load reviews: $e');
     }
   }
 
@@ -639,7 +677,7 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.rate_review, size: 64, color: AppColors.grey),
+            const Icon(Icons.rate_review, size: 64, color: AppColors.brown),
             const SizedBox(height: AppDimensions.paddingMedium),
             const Text('No owner reviews yet', style: AppTextStyles.body1),
             const SizedBox(height: AppDimensions.paddingMedium),
@@ -667,6 +705,43 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
       itemCount: _reviews.length,
       itemBuilder: (context, index) {
         final review = _reviews[index];
+        
+        // Safely extract reviewer name with fallbacks
+        String reviewerName = 'Anonymous';
+        if (review['reviewer'] != null) {
+          reviewerName = review['reviewer'].toString();
+        } else if (review['user_name'] != null) {
+          reviewerName = review['user_name'].toString();
+        } else if (review['user'] != null) {
+          reviewerName = review['user'].toString();
+        }
+
+        // Safely extract overall rating
+        double overallRating = 0.0;
+        if (review['overall'] != null) {
+          overallRating = double.tryParse(review['overall'].toString()) ?? 0.0;
+        } else if (review['overall_rating'] != null) {
+          overallRating = double.tryParse(review['overall_rating'].toString()) ?? 0.0;
+        } else if (review['average'] != null) {
+          overallRating = double.tryParse(review['average'].toString()) ?? 0.0;
+        }
+
+        // Safely extract comment
+        String comment = '';
+        if (review['comment'] != null) {
+          comment = review['comment'].toString();
+        } else if (review['review'] != null) {
+          comment = review['review'].toString();
+        }
+
+        // Safely extract date
+        String reviewDate = 'Unknown date';
+        if (review['created_at'] != null) {
+          reviewDate = _formatDate(review['created_at'].toString());
+        } else if (review['date'] != null) {
+          reviewDate = _formatDate(review['date'].toString());
+        }
+
         return Card(
           margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
           child: Padding(
@@ -680,10 +755,9 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                       radius: 20,
                       backgroundColor: AppColors.tan,
                       child: Text(
-                        (review['owner_name'] ?? review['user'] ?? 'O')
-                            .toString()
-                            .substring(0, 1)
-                            .toUpperCase(),
+                        reviewerName.isNotEmpty 
+                            ? reviewerName.substring(0, 1).toUpperCase()
+                            : 'A',
                         style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
                       ),
                     ),
@@ -693,24 +767,56 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            review['owner_name'] ?? review['user'] ?? 'Anonymous',
+                            reviewerName,
                             style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            _formatDate(review['created_at'] ?? review['date']),
+                            reviewDate,
                             style: AppTextStyles.caption,
                           ),
                         ],
                       ),
                     ),
-                    _buildOverallRating(review['overall_rating'] ?? review['rating'] ?? 0),
+                    _buildOverallRating(overallRating),
                   ],
                 ),
                 const SizedBox(height: AppDimensions.paddingMedium),
 
-                if (review['review'] != null || review['comment'] != null) ...[
+                // Display detailed ratings if available
+                if (review['payment_punctuality'] != null || 
+                    review['support'] != null || 
+                    review['transparency'] != null ||
+                    review['rate_fairness'] != null ||
+                    review['driver_responsibility'] != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+                    decoration: BoxDecoration(
+                      color: AppColors.grey.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        if (review['payment_punctuality'] != null)
+                          _buildSmallRating('Payment', review['payment_punctuality']),
+                        if (review['support'] != null)
+                          _buildSmallRating('Support', review['support']),
+                        if (review['transparency'] != null)
+                          _buildSmallRating('Transparency', review['transparency']),
+                        if (review['rate_fairness'] != null)
+                          _buildSmallRating('Fairness', review['rate_fairness']),
+                        if (review['driver_responsibility'] != null)
+                          _buildSmallRating('Driver', review['driver_responsibility']),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.paddingSmall),
+                ],
+
+                if (comment.isNotEmpty) ...[
                   Text(
-                    review['review'] ?? review['comment'] ?? '',
+                    comment,
                     style: AppTextStyles.body2,
                   ),
                 ],
@@ -719,6 +825,27 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildSmallRating(String label, dynamic rating) {
+    final ratingValue = double.tryParse(rating.toString()) ?? 0.0;
+    return Column(
+      children: [
+        Text(label, style: AppTextStyles.caption),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.star, size: 12, color: AppColors.warning),
+            const SizedBox(width: 2),
+            Text(
+              ratingValue.toStringAsFixed(1),
+              style: AppTextStyles.caption.copyWith(fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -796,72 +923,69 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
   }
 
   String _formatCurrency(String amount) {
-    final value = double.tryParse(amount) ?? 0;
-    if (value >= 1000000) {
-      return '${(value / 1000000).toStringAsFixed(1)}M';
-    } else if (value >= 1000) {
-      return '${(value / 1000).toStringAsFixed(0)}K';
-    } else {
+      final value = double.tryParse(amount) ?? 0;
+      if (value >= 1000000) {
+        return '${(value / 1000000).toStringAsFixed(1)}M';
+      } else if (value >= 1000) {
+        return '${(value / 1000).toStringAsFixed(1)}K';
+      }
       return value.toStringAsFixed(0);
     }
-  }
 
-  String _formatDate(dynamic dateString) {
-    if (dateString == null) return 'Unknown date';
-
-    try {
-      final date = DateTime.parse(dateString.toString());
-      final now = DateTime.now();
-      final difference = now.difference(date);
-
-      if (difference.inDays == 0) {
-        return 'Today';
-      } else if (difference.inDays == 1) {
-        return 'Yesterday';
-      } else if (difference.inDays < 7) {
-        return '${difference.inDays} days ago';
-      } else if (difference.inDays < 30) {
-        return '${(difference.inDays / 7).floor()} weeks ago';
-      } else if (difference.inDays < 365) {
-        return '${(difference.inDays / 30).floor()} months ago';
-      } else {
-        return '${(difference.inDays / 365).floor()} years ago';
+    String _formatDate(String? dateString) {
+      if (dateString == null) return 'Unknown date';
+      try {
+        final date = DateTime.parse(dateString);
+        final now = DateTime.now();
+        final difference = now.difference(date);
+        
+        if (difference.inDays == 0) {
+          return 'Today';
+        } else if (difference.inDays == 1) {
+          return 'Yesterday';
+        } else if (difference.inDays < 7) {
+          return '${difference.inDays} days ago';
+        } else if (difference.inDays < 30) {
+          return '${(difference.inDays / 7).floor()} weeks ago';
+        } else if (difference.inDays < 365) {
+          return '${(difference.inDays / 30).floor()} months ago';
+        } else {
+          return '${(difference.inDays / 365).floor()} years ago';
+        }
+      } catch (e) {
+        return dateString;
       }
-    } catch (e) {
-      return dateString.toString();
+    }
+
+    @override
+    void dispose() {
+      _tabController.dispose();
+      _scrollController.dispose();
+      super.dispose();
     }
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _scrollController.dispose();
-    super.dispose();
+  class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
+    final TabBar tabBar;
+
+    _SliverTabBarDelegate(this.tabBar);
+
+    @override
+    double get minExtent => tabBar.preferredSize.height;
+
+    @override
+    double get maxExtent => tabBar.preferredSize.height;
+
+    @override
+    Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+      return Container(
+        color: Colors.white,
+        child: tabBar,
+      );
+    }
+
+    @override
+    bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+      return false;
+    }
   }
-}
-
-// Custom SliverPersistentHeaderDelegate for the TabBar
-class _SliverTabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabBar _tabBar;
-
-  _SliverTabBarDelegate(this._tabBar);
-
-  @override
-  double get minExtent => _tabBar.preferredSize.height;
-  @override
-  double get maxExtent => _tabBar.preferredSize.height;
-
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: AppColors.tan,
-      child: _tabBar,
-    );
-  }
-
-  @override
-  bool shouldRebuild(_SliverTabBarDelegate oldDelegate) {
-    return false;
-  }
-}

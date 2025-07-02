@@ -341,7 +341,7 @@ class _RouteDetailPageState extends State<RouteDetailPage>
             _buildDetailRow('Start Location', routeData!['start_location']),
             _buildDetailRow('End Location', routeData!['end_location']),
             _buildDetailRow('Distance', '${routeData!['distance']} km'),
-            _buildDetailRow('Duration', '${routeData!['duration']} minutes'),
+            _buildDetailRow('Duration', '${routeData!['duration']} hours'),
             _buildDetailRow('Fare', 'KSh ${routeData!['fare']}'),
           ]),
           const SizedBox(height: 24),

@@ -25,6 +25,10 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
   bool _isLoading = false;
   bool _isLoadingVehicles = true;
   bool _isLoadingDocuments = false;
+  List<dynamic> _allVehicles = [];
+  List<dynamic> _availableVehicles = [];
+  List<dynamic>? _cachedPendingRequests; 
+
   
   // Updated document structure to match server requirements
   final Map<String, PlatformFile?> _requiredDocuments = {
@@ -83,16 +87,16 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
 
   Future<void> _loadUserVehicles() async {
     try {
+      // First, get all user vehicles
       final vehicles = await VehicleOwnerService.getVehicles();
+      
       setState(() {
-        _userVehicles = vehicles;
-        _isLoadingVehicles = false;
-        // Auto-select first vehicle if only one exists
-        if (vehicles.length == 1) {
-          _selectedVehicleId = vehicles[0]['id'];
-          _loadVehicleDocuments(vehicles[0]['id']); // Load documents for auto-selected vehicle
-        }
+        _allVehicles = vehicles;
       });
+
+      // Filter vehicles to only include those without SACCO or pending requests
+      await _filterAvailableVehicles(vehicles);
+      
     } catch (e) {
       setState(() {
         _isLoadingVehicles = false;
@@ -100,6 +104,104 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
       _showErrorDialog('Failed to load your vehicles: $e');
     }
   }
+  // Add this new method to filter available vehicles
+  Future<void> _filterAvailableVehicles(List<dynamic> vehicles) async {
+    List<dynamic> availableVehicles = [];
+    
+    for (var vehicle in vehicles) {
+      try {
+        final vehicleId = vehicle['id'];
+        
+        // Check if vehicle has SACCO details
+        bool hasActiveSacco = false;
+        bool hasPendingRequest = false;
+        
+        try {
+          // Check if vehicle is already in a SACCO
+          final saccoDetails = await VehicleOwnerService.getVehicleWithSacco(vehicleId);
+          
+          // If the vehicle has sacco_id or is_sacco_member is true, it's already in a SACCO
+          if (saccoDetails['sacco_id'] != null || 
+              saccoDetails['is_sacco_member'] == true) {
+            hasActiveSacco = true;
+          }
+        } catch (e) {
+          // If 404 or similar error, vehicle doesn't have SACCO details
+          print('No SACCO details for vehicle $vehicleId: $e');
+        }
+        
+        // If vehicle doesn't have active SACCO, check for pending requests
+        if (!hasActiveSacco) {
+          try {
+            // Check for pending requests for this specific vehicle
+            // You might need to create a method to get pending requests for a specific vehicle
+            final pendingRequests = await _getVehiclePendingRequests(vehicleId);
+            hasPendingRequest = pendingRequests.isNotEmpty;
+          } catch (e) {
+            print('Error checking pending requests for vehicle $vehicleId: $e');
+            // If error checking pending requests, assume no pending requests
+          }
+        }
+        
+        // Only add vehicle if it doesn't have active SACCO and no pending requests
+        if (!hasActiveSacco && !hasPendingRequest) {
+          availableVehicles.add(vehicle);
+        }
+        
+      } catch (e) {
+        print('Error processing vehicle ${vehicle['id']}: $e');
+        // In case of error, include the vehicle (fail-safe approach)
+        availableVehicles.add(vehicle);
+      }
+    }
+    
+    setState(() {
+      _availableVehicles = availableVehicles;
+      _userVehicles = availableVehicles; // Update the existing variable
+      _isLoadingVehicles = false;
+      
+      // Auto-select first vehicle if only one available
+      if (availableVehicles.length == 1) {
+        _selectedVehicleId = availableVehicles[0]['id'];
+        _loadVehicleDocuments(availableVehicles[0]['id']);
+      }
+    });
+  }
+
+  // Add this helper method to check pending requests for a specific vehicle using cached data
+
+
+  // Add this helper method to check pending requests for a specific vehicle
+  Future<List<dynamic>> _getVehiclePendingRequests(int vehicleId) async {
+    try {
+      // Use client-side filtering of all pending requests for this SACCO
+      final allPendingRequests = await VehicleOwnerService.getPendingSaccoRequests(widget.saccoId.toString());
+      
+      // Filter requests that match this vehicle ID
+      final vehicleRequests = allPendingRequests.where((request) {
+        // Check different possible structures for vehicle ID
+        if (request['vehicle_id'] != null) {
+          return request['vehicle_id'] == vehicleId;
+        } else if (request['vehicle'] != null && request['vehicle']['id'] != null) {
+          return request['vehicle']['id'] == vehicleId;
+        } else if (request['vehicle_details'] != null && request['vehicle_details']['id'] != null) {
+          return request['vehicle_details']['id'] == vehicleId;
+        }
+        return false;
+      }).toList();
+      
+      print('Found ${vehicleRequests.length} pending requests for vehicle $vehicleId');
+      return vehicleRequests;
+      
+    } catch (e) {
+      print('Error getting pending requests for vehicle $vehicleId: $e');
+      // Return empty list if can't check - this is a fail-safe approach
+      // You might want to return [] to be conservative, or throw the error
+      // to prevent vehicles from being shown if the check fails
+      return [];
+    }
+  }
+
 
   Future<void> _loadVehicleDocuments(int vehicleId) async {
     setState(() {
@@ -329,7 +431,8 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
       );
     }
 
-    if (_userVehicles.isEmpty) {
+    // Show different messages based on vehicle availability
+    if (_allVehicles.isEmpty) {
       return Card(
         color: Colors.orange[50],
         child: Padding(
@@ -363,6 +466,40 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
       );
     }
 
+    if (_availableVehicles.isEmpty) {
+      return Card(
+        color: Colors.blue[50],
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              Icon(Icons.info, color: Colors.blue[700], size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                'No Available Vehicles',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'All your vehicles are either already in a SACCO or have pending applications. '
+                'You can only join a SACCO with vehicles that are not currently associated with any SACCO.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -375,7 +512,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                 Icon(Icons.directions_car, color: Colors.green[700], size: 24),
                 const SizedBox(width: 12),
                 const Text(
-                  'Select Vehicle to Join With',
+                  'Select Available Vehicle',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w600,
@@ -383,10 +520,18 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Showing ${_availableVehicles.length} of ${_allVehicles.length} vehicles (excluding those already in SACCOs or with pending applications)',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 12,
+              ),
+            ),
             const SizedBox(height: 16),
             
             // Vehicle selection list
-            ...(_userVehicles.map((vehicle) {
+            ...(_availableVehicles.map((vehicle) {
               final isSelected = _selectedVehicleId == vehicle['id'];
               return Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -412,6 +557,22 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                       Text('Year: ${vehicle['year']}'),
                       if (vehicle['route'] != null)
                         Text('Current Route: ${vehicle['route']}'),
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'Available',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.green[700],
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                   value: vehicle['id'],
@@ -421,7 +582,7 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
                       _selectedVehicleId = value;
                     });
                     if (value != null) {
-                      _loadVehicleDocuments(value); // Load documents when vehicle is selected
+                      _loadVehicleDocuments(value);
                     }
                   },
                 ),
@@ -940,56 +1101,56 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
            _agreeToTerms;
   }
 
-  // Add this method to show document preview
-  Widget _buildDocumentPreview(String documentType, PlatformFile file) {
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey[300]!),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _getFileIcon(file.extension?.toLowerCase() ?? ''),
-            size: 20,
-            color: Colors.blue[600],
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  file.name,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  '${(file.size / 1024 / 1024).toStringAsFixed(1)} MB',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            onPressed: () => _removeDocument(documentType),
-            icon: const Icon(Icons.close, size: 16),
-            constraints: const BoxConstraints(),
-            padding: EdgeInsets.zero,
-          ),
-        ],
-      ),
-    );
-  }
+  // // Add this method to show document preview
+  // Widget _buildDocumentPreview(String documentType, PlatformFile file) {
+  //   return Container(
+  //     margin: const EdgeInsets.only(top: 8),
+  //     padding: const EdgeInsets.all(8),
+  //     decoration: BoxDecoration(
+  //       color: Colors.grey[100],
+  //       borderRadius: BorderRadius.circular(4),
+  //       border: Border.all(color: Colors.grey[300]!),
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Icon(
+  //           _getFileIcon(file.extension?.toLowerCase() ?? ''),
+  //           size: 20,
+  //           color: Colors.blue[600],
+  //         ),
+  //         const SizedBox(width: 8),
+  //         Expanded(
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               Text(
+  //                 file.name,
+  //                 style: const TextStyle(
+  //                   fontSize: 12,
+  //                   fontWeight: FontWeight.w500,
+  //                 ),
+  //                 overflow: TextOverflow.ellipsis,
+  //               ),
+  //               Text(
+  //                 '${(file.size / 1024 / 1024).toStringAsFixed(1)} MB',
+  //                 style: TextStyle(
+  //                   fontSize: 10,
+  //                   color: Colors.grey[600],
+  //                 ),
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         IconButton(
+  //           onPressed: () => _removeDocument(documentType),
+  //           icon: const Icon(Icons.close, size: 16),
+  //           constraints: const BoxConstraints(),
+  //           padding: EdgeInsets.zero,
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // Helper method to get appropriate file icon
   IconData _getFileIcon(String extension) {

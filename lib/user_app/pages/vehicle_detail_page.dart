@@ -18,7 +18,6 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver{
   Map<String, dynamic> _vehicleData = {};
   Map<String, dynamic> _vehicleStats = {};
-  List<dynamic> _vehicleTrips = [];
   List<dynamic> _vehicleDocuments = [];
   bool _isLoading = true;
   bool _isRefreshing = false;
@@ -27,7 +26,7 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _loadVehicleData();
   }
 
@@ -98,8 +97,6 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
           indicatorColor: AppColors.brown,
           tabs: const [
             Tab(text: 'Overview'),
-            Tab(text: 'Trips'),
-            Tab(text: 'Stats'),
             Tab(text: 'Documents'),
           ],
         ),
@@ -112,19 +109,10 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
                 controller: _tabController,
                 children: [
                   _buildOverviewTab(),
-                  _buildTripsTab(),
-                  _buildStatsTab(),
                   _buildDocumentsTab(),
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.brown,
-        onPressed: () {
-          _showAddTripDialog();
-        },
-        child: const Icon(Icons.add_road, color: AppColors.white),
-      ),
     );
   }
 
@@ -134,15 +122,13 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
       final results = await Future.wait([
         _getVehicleDetails(),
         VehicleOwnerService.getVehicleStats(widget.vehicleId),
-        VehicleOwnerService.getVehicleTrips(widget.vehicleId),
         VehicleOwnerService.getVehicleDocuments(widget.vehicleId),
       ]);
 
       setState(() {
         _vehicleData = results[0] as Map<String, dynamic>;
         _vehicleStats = results[1] as Map<String, dynamic>;
-        _vehicleTrips = results[2] as List<dynamic>;
-        _vehicleDocuments = results[3] as List<dynamic>;
+        _vehicleDocuments = results[2] as List<dynamic>;
       });
     } catch (e) {
       _showErrorSnackBar('Failed to load vehicle data: $e');
@@ -266,9 +252,6 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
           _buildInfoRow('Capacity', '${_vehicleData['capacity'] ?? 'N/A'} passengers'),
           _buildInfoRow('Route', _vehicleData['route'] ?? 'Not assigned'),
           _buildInfoRow('Sacco', _vehicleData['sacco_name'] ?? 'Not joined'),
-          _buildInfoRow('Color', _vehicleData['color'] ?? 'N/A'),
-          _buildInfoRow('Engine Number', _vehicleData['engine_number'] ?? 'N/A'),
-          _buildInfoRow('Chassis Number', _vehicleData['chassis_number'] ?? 'N/A'),
         ],
       ),
     );
@@ -569,163 +552,6 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
     );
   }
 
-  Widget _buildTripsTab() {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: _vehicleTrips.isEmpty
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(
-                    Icons.directions,
-                    size: 64,
-                    color: AppColors.grey,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'No trips recorded',
-                    style: AppTextStyles.heading3,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Start adding trips to track your vehicle\'s performance',
-                    style: AppTextStyles.body2,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _showAddTripDialog,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.brown,
-                      foregroundColor: AppColors.white,
-                    ),
-                    child: const Text('Add First Trip'),
-                  ),
-                ],
-              ),
-            )
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: _vehicleTrips.length,
-              itemBuilder: (context, index) {
-                final trip = _vehicleTrips[index];
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            trip['route'] ?? 'Unknown Route',
-                            style: AppTextStyles.body1.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'KES ${trip['fare'] ?? 0}',
-                            style: AppTextStyles.body1.copyWith(
-                              color: AppColors.success,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          const Icon(Icons.access_time, size: 16, color: AppColors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            trip['date'] ?? 'Unknown Date',
-                            style: AppTextStyles.caption,
-                          ),
-                          const SizedBox(width: 16),
-                          const Icon(Icons.people, size: 16, color: AppColors.grey),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${trip['passengers'] ?? 0} passengers',
-                            style: AppTextStyles.caption,
-                          ),
-                        ],
-                      ),
-                      if (trip['distance'] != null) ...[
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.straighten, size: 16, color: AppColors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${trip['distance']} km',
-                              style: AppTextStyles.caption,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
-            ),
-    );
-  }
-
-  Widget _buildStatsTab() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Performance Statistics',
-            style: AppTextStyles.heading2,
-          ),
-          const SizedBox(height: 16),
-          // Add charts and detailed statistics here
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  'Detailed statistics will be implemented here',
-                  style: AppTextStyles.body1,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'This could include:',
-                  style: AppTextStyles.body2,
-                ),
-                const SizedBox(height: 8),
-                const Text('• Monthly earnings chart'),
-                const Text('• Trip frequency analysis'),
-                const Text('• Fuel consumption tracking'),
-                const Text('• Maintenance schedule'),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildDocumentsTab() {
     return RefreshIndicator(
       onRefresh: _refreshData,
@@ -875,30 +701,6 @@ class _VehicleDetailPageState extends State<VehicleDetailPage>
               foregroundColor: AppColors.white,
             ),
             child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddTripDialog() {
-    // Implement add trip dialog
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Trip'),
-        content: const Text('Add trip functionality will be implemented here'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Implement add trip functionality
-            },
-            child: const Text('Add'),
           ),
         ],
       ),

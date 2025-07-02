@@ -160,7 +160,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
   Widget _buildPendingRequestsAlert() {
     return Card(
       elevation: 3,
-      color: AppColors.orange.withOpacity(0.1),
+      color: AppColors.brown,
       child: InkWell(
         onTap: () {
           final saccoId = _dashboardData?['sacco_info']?['id'];
@@ -180,7 +180,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
             children: [
               Icon(
                 Icons.pending_actions,
-                color: AppColors.orange,
+                color: AppColors.brown,
                 size: 32,
               ),
               const SizedBox(width: AppDimensions.paddingMedium),
@@ -191,7 +191,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
                     Text(
                       'Pending Vehicle Requests',
                       style: AppTextStyles.heading3.copyWith(
-                        color: AppColors.orange,
+                        color: AppColors.brown,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -206,7 +206,7 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
               ),
               Icon(
                 Icons.arrow_forward_ios,
-                color: AppColors.orange,
+                color: AppColors.brown,
               ),
             ],
           ),
