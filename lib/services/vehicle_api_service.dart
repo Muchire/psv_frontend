@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 class VehicleOwnerService {
   static const String baseUrl = 'http://127.0.0.1:8000/api';
   static const String vehicleOwnerPath = '/vehicles';
+  static const String saccoAdminPath = '/vehicles/sacco/admin';
 
   // Get auth headers with token - now async
   static Future<Map<String, String>> _getHeaders() async {
@@ -76,7 +77,52 @@ class VehicleOwnerService {
       throw Exception('Error fetching vehicles: $e');
     }
   }
+  static Future<Map<String, dynamic>> getSaccoVehicles() async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl$saccoAdminPath/vehicles/'),
+        headers: headers,
+      );
 
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized: Please check your authentication');
+      } else if (response.statusCode == 403) {
+        throw Exception('Forbidden: You don\'t have sacco admin permissions');
+      } else if (response.statusCode == 404) {
+        throw Exception('No sacco found for this admin');
+      } else {
+        throw Exception('Failed to load sacco vehicles: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error fetching sacco vehicles: $e');
+    }
+  }
+   static Future<Map<String, dynamic>> getSaccoVehiclesById(int saccoId) async {
+    try {
+      final headers = await _getHeaders();
+      final response = await http.get(
+        Uri.parse('$baseUrl/sacco/$saccoId/admin/vehicles/'),
+        headers: headers,
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else if (response.statusCode == 401) {
+        throw Exception('Unauthorized: Please check your authentication');
+      } else if (response.statusCode == 403) {
+        throw Exception('Forbidden: You don\'t have permission to view this sacco\'s vehicles');
+      } else if (response.statusCode == 404) {
+        throw Exception('Sacco not found');
+      } else {
+        throw Exception('Failed to load sacco vehicles: ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Error fetching sacco vehicles: $e');
+    }
+  }
   // Create vehicle
   static Future<Map<String, dynamic>> createVehicle(
     Map<String, dynamic> vehicleData,
@@ -1028,21 +1074,31 @@ class VehicleOwnerService {
     }
   }
 
-  // Get vehicle with updated sacco information
-  static Future<Map<String, dynamic>> getVehicleWithSacco(
+  static Future<Map<String, dynamic>?> getVehicleWithSacco(
     dynamic vehicleId,
   ) async {
     try {
+      // Convert vehicleId to int to ensure type consistency
+      
+      // Fetch the specific vehicle details to check if it has SACCO info
       final response = await http.get(
-        Uri.parse('$baseUrl/vehicles/$vehicleId/sacco-details'),
+        Uri.parse('$baseUrl/vehicles/'),  // Use the vehicle detail endpoint
         headers: await ApiService.getHeaders(),
       );
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data['vehicle'] ?? {};
+        
+        // Check if the vehicle has SACCO information
+        if (data['sacco_id'] != null || data['is_sacco_member'] == true) {
+          return data;
+        } else {
+          // Vehicle exists but has no SACCO association
+          return null;
+        }
       } else if (response.statusCode == 404) {
-        throw Exception('Vehicle not found');
+        // Vehicle not found - return null instead of throwing exception
+        return null;
       } else {
         final errorData = json.decode(response.body);
         throw Exception(
@@ -1050,7 +1106,23 @@ class VehicleOwnerService {
         );
       }
     } catch (e) {
-      throw Exception('Error fetching vehicle with sacco info: $e');
+      // Log the error but don't throw it for vehicle availability checking
+      print('Error fetching vehicle SACCO info for vehicle $vehicleId: $e');
+      return null;
+    }
+  }
+
+  // Alternative approach: Add a method to check if vehicle is available for SACCO joining
+  static Future<bool> isVehicleAvailableForSacco(dynamic vehicleId) async {
+    try {
+      final vehicleData = await getVehicleWithSacco(vehicleId);
+      
+      // Vehicle is available if it has no SACCO association
+      return vehicleData == null;
+    } catch (e) {
+      print('Error checking vehicle availability: $e');
+      // If we can't determine, assume it's not available to be safe
+      return false;
     }
   }
   static Future<List<dynamic>> getPendingSaccoRequests(String saccoId) async {

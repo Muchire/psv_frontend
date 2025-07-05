@@ -408,7 +408,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   }
                 }
               },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.brown),
               child: const Text('Logout'),
             ),
           ],
@@ -1258,7 +1258,7 @@ class _ProfilePageState extends State<ProfilePage> {
       subtitle: Text(subtitle, style: AppTextStyles.caption),
       trailing: Icon(
         Icons.chevron_right,
-        color: isDestructive ? AppColors.error : Colors.grey[400],
+        color: isDestructive ? AppColors.brown : Colors.grey[400],
       ),
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

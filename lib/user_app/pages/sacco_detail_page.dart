@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '/services/api_service.dart';
 import '../utils/constants.dart';
 import 'add_review_page.dart';
+import 'package:intl/intl.dart';
 
 class SaccoDetailPage extends StatefulWidget {
   final int saccoId;
@@ -56,6 +57,20 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
       _showErrorSnackBar('Failed to load reviews: $e');
     }
   }
+  String _formatDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) {
+      return '';
+    }
+    
+    try {
+
+      DateTime dateTime = DateTime.parse(dateString);
+
+      return DateFormat('MMM d, yyyy').format(dateTime); 
+    } catch (e) {
+      return dateString; 
+    }
+}
 
   Future<void> _loadRoutes() async {
     setState(() => _isLoadingRoutes = true);
@@ -466,7 +481,7 @@ class _SaccoDetailPageState extends State<SaccoDetailPage> with SingleTickerProv
                             style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
                           ),
                           Text(
-                            review['created_at'] ?? review['date_created'] ?? '',
+                            _formatDate(review['created_at'] ?? review['date_created'] ?? ''),
                             style: AppTextStyles.caption,
                           ),
                         ],

@@ -9,6 +9,7 @@ import 'sacco_routes_page.dart';
 import 'sacco_reviews_page.dart';
 import 'sacco_edit_page.dart';
 import 'sacco_vehicle_requests_page.dart';
+import 'sacco_view_list_page.dart';
 
 class SaccoAdminDashboard extends StatefulWidget {
   const SaccoAdminDashboard({super.key});
@@ -46,8 +47,6 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
           final pendingRequests = await VehicleOwnerService.getPendingSaccoRequests(saccoId.toString());
           _pendingRequestsCount = pendingRequests.length;
         } catch (e) {
-          // If we can't load pending requests, don't fail the whole dashboard
-          print('Error loading pending requests: $e');
           _pendingRequestsCount = 0;
         }
       }
@@ -61,6 +60,25 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
         _error = e.toString();
         _isLoading = false;
       });
+    }
+  }
+  void _navigateToVehiclesPage() {
+    final saccoId = _dashboardData?['sacco_info']?['id'];
+    if (saccoId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SaccoVehiclesPage(saccoId: saccoId),
+        ),
+      ).then((_) => _loadDashboardData()); // Refresh data when returning
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Unable to load vehicles: Sacco ID not found'),
+          backgroundColor: AppColors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 
@@ -149,6 +167,9 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
             _buildPendingRequestsAlert(),
             const SizedBox(height: AppDimensions.paddingMedium),
           ],
+          // Add the vehicles button here
+          _buildVehiclesButton(),
+          const SizedBox(height: AppDimensions.paddingMedium),
           _buildQuickStatsSection(),
           const SizedBox(height: AppDimensions.paddingMedium),
           _buildRecentReviewsSection(),
@@ -156,11 +177,10 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
       ),
     );
   }
-
   Widget _buildPendingRequestsAlert() {
     return Card(
       elevation: 3,
-      color: AppColors.brown,
+      color: AppColors.white,
       child: InkWell(
         onTap: () {
           final saccoId = _dashboardData?['sacco_info']?['id'];
@@ -299,11 +319,57 @@ class _SaccoAdminDashboardState extends State<SaccoAdminDashboard> {
         Text(
           label,
           style: AppTextStyles.caption.copyWith(
-            color: AppColors.white.withOpacity(0.8),
+            color: AppColors.white,
           ),
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+  Widget _buildVehiclesButton() {
+    return Card(
+      elevation: 2,
+      child: InkWell(
+        onTap: _navigateToVehiclesPage,
+        borderRadius: BorderRadius.circular(AppDimensions.radiusMedium),
+        child: Container(
+          padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+          child: Row(
+            children: [
+              Icon(
+                Icons.directions_car,
+                color: AppColors.brown,
+                size: 32,
+              ),
+              const SizedBox(width: AppDimensions.paddingMedium),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Manage Vehicles',
+                      style: AppTextStyles.heading3.copyWith(
+                        color: AppColors.brown,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'View and manage all registered vehicles',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(
+                Icons.arrow_forward_ios,
+                color: AppColors.brown,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

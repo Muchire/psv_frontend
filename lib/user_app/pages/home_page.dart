@@ -659,7 +659,7 @@ class _HomePageState extends State<HomePage> {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '${route['duration']} mins',
+                            '${route['duration']} hrs',
                             style: AppTextStyles.caption,
                           ),
                         ],
