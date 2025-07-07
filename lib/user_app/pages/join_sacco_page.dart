@@ -121,8 +121,9 @@ class _JoinSaccoPageState extends State<JoinSaccoPage> {
           final saccoDetails = await VehicleOwnerService.getVehicleWithSacco(vehicleId);
           
           // If the vehicle has sacco_id or is_sacco_member is true, it's already in a SACCO
-          if (saccoDetails['sacco_id'] != null || 
-              saccoDetails['is_sacco_member'] == true) {
+          if (saccoDetails != null && 
+              (saccoDetails['sacco_id'] != null || 
+               saccoDetails['is_sacco_member'] == true)) {
             hasActiveSacco = true;
           }
         } catch (e) {

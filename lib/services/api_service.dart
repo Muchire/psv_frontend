@@ -208,6 +208,18 @@ class ApiService {
       throw Exception('Failed to load saccos');
     }
   }
+  static Future<List<dynamic>> getSaccoAdminRequests() async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/sacco/admin-requests/'),
+      headers: await getHeaders(),
+    );
+    
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body);
+    } else {
+      throw Exception('Failed to load sacco admin requests');
+    }
+  }
   
   static Future<Map<String, dynamic>> getSaccoDetail(int id) async {
     final response = await http.get(

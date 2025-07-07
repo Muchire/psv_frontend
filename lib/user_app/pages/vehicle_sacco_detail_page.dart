@@ -666,168 +666,168 @@ class _VehicleSaccoDetailPageState extends State<VehicleSaccoDetailPage>
       ],
     );
   }
-
   Widget _buildReviewsTab() {
-    if (_isLoadingReviews) {
-      return const Center(child: CircularProgressIndicator());
-    }
+      if (_isLoadingReviews) {
+        return const Center(child: CircularProgressIndicator());
+      }
 
-    if (_reviews.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.rate_review, size: 64, color: AppColors.brown),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            const Text('No owner reviews yet', style: AppTextStyles.body1),
-            const SizedBox(height: AppDimensions.paddingMedium),
-            ElevatedButton(
-              onPressed: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddOwnerReviewPage(saccoId: widget.saccoId),
-                  ),
-                );
-                if (result == true) {
-                  _loadOwnerReviews();
-                }
-              },
-              child: const Text('Be the first to review'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-      itemCount: _reviews.length,
-      itemBuilder: (context, index) {
-        final review = _reviews[index];
-        
-        // Safely extract reviewer name with fallbacks
-        String reviewerName = 'Anonymous';
-        if (review['reviewer'] != null) {
-          reviewerName = review['reviewer'].toString();
-        } else if (review['user_name'] != null) {
-          reviewerName = review['user_name'].toString();
-        } else if (review['user'] != null) {
-          reviewerName = review['user'].toString();
-        }
-
-        // Safely extract overall rating
-        double overallRating = 0.0;
-        if (review['overall'] != null) {
-          overallRating = double.tryParse(review['overall'].toString()) ?? 0.0;
-        } else if (review['overall_rating'] != null) {
-          overallRating = double.tryParse(review['overall_rating'].toString()) ?? 0.0;
-        } else if (review['average'] != null) {
-          overallRating = double.tryParse(review['average'].toString()) ?? 0.0;
-        }
-
-        // Safely extract comment
-        String comment = '';
-        if (review['comment'] != null) {
-          comment = review['comment'].toString();
-        } else if (review['review'] != null) {
-          comment = review['review'].toString();
-        }
-
-        // Safely extract date
-        String reviewDate = 'Unknown date';
-        if (review['created_at'] != null) {
-          reviewDate = _formatDate(review['created_at'].toString());
-        } else if (review['date'] != null) {
-          reviewDate = _formatDate(review['date'].toString());
-        }
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
-          child: Padding(
-            padding: const EdgeInsets.all(AppDimensions.paddingMedium),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppColors.tan,
-                      child: Text(
-                        reviewerName.isNotEmpty 
-                            ? reviewerName.substring(0, 1).toUpperCase()
-                            : 'A',
-                        style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
-                      ),
+      if (_reviews.isEmpty) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.rate_review, size: 64, color: AppColors.brown),
+              const SizedBox(height: AppDimensions.paddingMedium),
+              const Text('No owner reviews yet', style: AppTextStyles.body1),
+              const SizedBox(height: AppDimensions.paddingMedium),
+              ElevatedButton(
+                onPressed: () async {
+                  final result = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AddOwnerReviewPage(saccoId: widget.saccoId),
                     ),
-                    const SizedBox(width: AppDimensions.paddingMedium),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            reviewerName,
-                            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                            reviewDate,
-                            style: AppTextStyles.caption,
-                          ),
-                        ],
-                      ),
-                    ),
-                    _buildOverallRating(overallRating),
-                  ],
-                ),
-                const SizedBox(height: AppDimensions.paddingMedium),
-
-                // Display detailed ratings if available
-                if (review['payment_punctuality'] != null || 
-                    review['support'] != null || 
-                    review['transparency'] != null ||
-                    review['rate_fairness'] != null ||
-                    review['driver_responsibility'] != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(AppDimensions.paddingSmall),
-                    decoration: BoxDecoration(
-                      color: AppColors.grey.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Wrap(
-                      spacing: 16,
-                      runSpacing: 8,
-                      children: [
-                        if (review['payment_punctuality'] != null)
-                          _buildSmallRating('Payment', review['payment_punctuality']),
-                        if (review['support'] != null)
-                          _buildSmallRating('Support', review['support']),
-                        if (review['transparency'] != null)
-                          _buildSmallRating('Transparency', review['transparency']),
-                        if (review['rate_fairness'] != null)
-                          _buildSmallRating('Fairness', review['rate_fairness']),
-                        if (review['driver_responsibility'] != null)
-                          _buildSmallRating('Driver', review['driver_responsibility']),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.paddingSmall),
-                ],
-
-                if (comment.isNotEmpty) ...[
-                  Text(
-                    comment,
-                    style: AppTextStyles.body2,
-                  ),
-                ],
-              ],
-            ),
+                  );
+                  if (result == true) {
+                    _loadOwnerReviews();
+                  }
+                },
+                child: const Text('Be the first to review'),
+              ),
+            ],
           ),
         );
-      },
-    );
-  }
+      }
 
+      return ListView.builder(
+        padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+        itemCount: _reviews.length,
+        itemBuilder: (context, index) {
+          final review = _reviews[index];
+          
+          // Safely extract reviewer name with fallbacks
+          String reviewerName = 'Anonymous';
+          if (review['reviewer'] != null) {
+            reviewerName = review['reviewer'].toString();
+          } else if (review['user_name'] != null) {
+            reviewerName = review['user_name'].toString();
+          } else if (review['user'] != null) {
+            reviewerName = review['user'].toString();
+          }
+
+          // Safely extract overall rating
+          double overallRating = 0.0;
+          if (review['overall'] != null) {
+            overallRating = double.tryParse(review['overall'].toString()) ?? 0.0;
+          } else if (review['overall_rating'] != null) {
+            overallRating = double.tryParse(review['overall_rating'].toString()) ?? 0.0;
+          } else if (review['average'] != null) {
+            overallRating = double.tryParse(review['average'].toString()) ?? 0.0;
+          }
+
+          // Safely extract comment
+          String comment = '';
+          if (review['comment'] != null) {
+            comment = review['comment'].toString();
+          } else if (review['review'] != null) {
+            comment = review['review'].toString();
+          }
+
+          // Safely extract date
+          String reviewDate = 'Unknown date';
+          if (review['created_at'] != null) {
+            reviewDate = _formatDate(review['created_at'].toString());
+          } else if (review['date'] != null) {
+            reviewDate = _formatDate(review['date'].toString());
+          }
+
+          // Collect available ratings
+          List<Widget> ratingWidgets = [];
+          if (review['payment_punctuality'] != null)
+            ratingWidgets.add(_buildSmallRating('Payment', review['payment_punctuality']));
+          if (review['support'] != null)
+            ratingWidgets.add(_buildSmallRating('Support', review['support']));
+          if (review['transparency'] != null)
+            ratingWidgets.add(_buildSmallRating('Transparency', review['transparency']));
+          if (review['rate_fairness'] != null)
+            ratingWidgets.add(_buildSmallRating('Fairness', review['rate_fairness']));
+          if (review['driver_responsibility'] != null)
+            ratingWidgets.add(_buildSmallRating('Driver', review['driver_responsibility']));
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: AppDimensions.paddingMedium),
+            child: Padding(
+              padding: const EdgeInsets.all(AppDimensions.paddingMedium),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppColors.tan,
+                        child: Text(
+                          reviewerName.isNotEmpty 
+                              ? reviewerName.substring(0, 1).toUpperCase()
+                              : 'A',
+                          style: AppTextStyles.body1.copyWith(color: AppColors.carafe),
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.paddingMedium),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              reviewerName,
+                              style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              reviewDate,
+                              style: AppTextStyles.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      _buildOverallRating(overallRating),
+                    ],
+                  ),
+                  const SizedBox(height: AppDimensions.paddingMedium),
+
+                  // Display detailed ratings if available - spread across screen
+                  if (ratingWidgets.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(AppDimensions.paddingSmall),
+                      decoration: BoxDecoration(
+                        color: AppColors.grey.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        children: ratingWidgets.map((widget) => Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: widget,
+                          ),
+                        )).toList(),
+                      ),
+                    ),
+                    const SizedBox(height: AppDimensions.paddingSmall),
+                  ],
+
+                  if (comment.isNotEmpty) ...[
+                    Text(
+                      comment,
+                      style: AppTextStyles.body2,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
   Widget _buildSmallRating(String label, dynamic rating) {
     final ratingValue = double.tryParse(rating.toString()) ?? 0.0;
     return Column(
